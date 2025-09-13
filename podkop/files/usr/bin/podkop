@@ -38,6 +38,12 @@ COLOR_CYAN="\033[0;36m"
 COLOR_GREEN="\033[0;32m"
 COLOR_RESET="\033[0m"
 
+# Firewall
+FIREWALL=nftables
+if command iptables -V > /dev/null 2>&1; then
+    FIREWALL=iptables
+fi
+
 log() {
     local message="$1"
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -141,7 +147,11 @@ start_main() {
     config_get_bool exclude_ntp "main" "exclude_ntp" "0"
     if [ "$exclude_ntp" -eq 1 ]; then
         log "NTP traffic exclude for proxy"
-        nft insert rule inet PodkopTable mangle udp dport 123 return
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft insert rule inet PodkopTable mangle udp dport 123 return
+        else
+            iptables -t mangle -A PROXY -p udp -dport 123 -j RETURN
+        fi
     fi
 
     config_get_bool quic_disable "main" "quic_disable" "0"
@@ -193,8 +203,13 @@ stop_main() {
     rm -rf /tmp/podkop/*.lst
 
     log "Flush nft"
-    if nft list table inet PodkopTable >/dev/null 2>&1; then
-        nft delete table inet PodkopTable
+    if [ "$FIREWALL" == "nftables" ]; then
+        if nft list table inet PodkopTable >/dev/null 2>&1; then
+            nft delete table inet PodkopTable
+        fi
+    else
+        #ToDo
+        iptables -t mangle -X PROXY
     fi
 
     log "Flush ip rule"
@@ -354,64 +369,107 @@ nft_interfaces() {
         SRC_INTERFACE=$INTERFACES_LIST
     else
         local set_name="interfaces"
-        if ! nft list set inet $table $set_name &>/dev/null; then
-            nft add set inet $table $set_name { type ifname\; flags interval\; }
-        fi
-
-        for interface in $INTERFACES_LIST; do
-            if ! nft list element inet $table $set_name { $interface } &>/dev/null; then
-            nft add element inet $table $set_name { $interface }
+        if [ "$FIREWALL" == "nftables" ]; then
+            if ! nft list set inet $table $set_name &>/dev/null; then
+                nft add set inet $table $set_name { type ifname\; flags interval\; }
             fi
-        done
+
+            for interface in $INTERFACES_LIST; do
+                if ! nft list element inet $table $set_name { $interface } &>/dev/null; then
+                nft add element inet $table $set_name { $interface }
+                fi
+            done
+        else
+            #ToDo
+        fi
 
         SRC_INTERFACE=@$set_name
     fi
 }
 
 create_nft_table() {
-    local table="PodkopTable"
+    if [ "$FIREWALL" == "nftables" ]; then
+        local table="PodkopTable"
 
-    nft add table inet $table
+        nft add table inet $table
+        nft_interfaces
 
-    nft_interfaces
+        log "Create localv4 set"
+        nft add set inet $table localv4 { type ipv4_addr\; flags interval\; }
+        nft add element inet $table localv4 { \
+            0.0.0.0/8, \
+            10.0.0.0/8, \
+            127.0.0.0/8, \
+            169.254.0.0/16, \
+            172.16.0.0/12, \
+            192.0.0.0/24, \
+            192.0.2.0/24, \
+            192.88.99.0/24, \
+            192.168.0.0/16, \
+            198.51.100.0/24, \
+            203.0.113.0/24, \
+            224.0.0.0/4, \
+            240.0.0.0-255.255.255.255 }
 
-    log "Create localv4 set"
-    nft add set inet $table localv4 { type ipv4_addr\; flags interval\; }
-    nft add element inet $table localv4 { \
-        0.0.0.0/8, \
-        10.0.0.0/8, \
-        127.0.0.0/8, \
-        169.254.0.0/16, \
-        172.16.0.0/12, \
-        192.0.0.0/24, \
-        192.0.2.0/24, \
-        192.88.99.0/24, \
-        192.168.0.0/16, \
-        198.51.100.0/24, \
-        203.0.113.0/24, \
-        224.0.0.0/4, \
-        240.0.0.0-255.255.255.255 }
+        log "Create nft rules"
+        nft add chain inet $table mangle { type filter hook prerouting priority -150 \; policy accept \;}
+        nft add chain inet $table mangle_output { type route hook output priority -150 \; policy accept\; }
+        nft add chain inet $table proxy { type filter hook prerouting priority -100 \; policy accept \;}
 
-    log "Create nft rules"
-    nft add chain inet $table mangle { type filter hook prerouting priority -150 \; policy accept \;}
-    nft add chain inet $table mangle_output { type route hook output priority -150 \; policy accept\; }
-    nft add chain inet $table proxy { type filter hook prerouting priority -100 \; policy accept \;}
+        nft add set inet $table podkop_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
 
-    nft add set inet $table podkop_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
+        nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_subnets meta l4proto tcp meta mark set 0x105 counter
+        nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_subnets meta l4proto udp meta mark set 0x105 counter
+        nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr "$FAKEIP" meta l4proto tcp meta mark set 0x105 counter
+        nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr "$FAKEIP" meta l4proto udp meta mark set 0x105 counter
 
-    nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_subnets meta l4proto tcp meta mark set 0x105 counter
-    nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_subnets meta l4proto udp meta mark set 0x105 counter
-    nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr "$FAKEIP" meta l4proto tcp meta mark set 0x105 counter
-    nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr "$FAKEIP" meta l4proto udp meta mark set 0x105 counter
+        nft add rule inet $table proxy meta mark 0x105 meta l4proto tcp tproxy ip to :1602 counter
+        nft add rule inet $table proxy meta mark 0x105 meta l4proto udp tproxy ip to :1602 counter
 
-    nft add rule inet $table proxy meta mark 0x105 meta l4proto tcp tproxy ip to :1602 counter
-    nft add rule inet $table proxy meta mark 0x105 meta l4proto udp tproxy ip to :1602 counter
+        nft add rule inet $table mangle_output ip daddr @localv4 return
+        nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto tcp meta mark set 0x00000105 counter
+        nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto udp meta mark set 0x00000105 counter
+        nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto tcp meta mark set 0x00000105 counter
+        nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto udp meta mark set 0x00000105 counter
+    else
+        localv4list="0.0.0.0/8
+            10.0.0.0/8
+            127.0.0.0/8
+            169.254.0.0/16
+            172.16.0.0/12
+            192.0.0.0/24
+            192.0.2.0/24
+            192.88.99.0/24
+            192.168.0.0/16
+            198.51.100.0/24
+            203.0.113.0/24
+            224.0.0.0/4
+            240.0.0.0/4"
 
-    nft add rule inet $table mangle_output ip daddr @localv4 return
-    nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto tcp meta mark set 0x00000105 counter
-    nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto udp meta mark set 0x00000105 counter
-    nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto tcp meta mark set 0x00000105 counter
-    nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto udp meta mark set 0x00000105 counter
+        log "Create iptables rules"
+        iptables -t mangle -N PROXY
+        iptables -t mangle -A PROXY -p tcp -j TPROXY --on-port 1602 --tproxy-mark 0x105
+        iptables -t mangle -A PROXY -p udp -j TPROXY --on-port 1602 --tproxy-mark 0x105
+        iptables -t mangle -A PREROUTING -j PROXY
+
+        iptables -t mangle -N MANGLE_OUTPUT
+        for ip in $localv4list; do
+            iptables -t mangle -A MANGLE_OUTPUT -d $ip -j RETURN
+        done
+
+        for server in $(uci get dhcp.@dnsmasq[0].server 2>/dev/null); do
+            if [[ "$server" == "127.0.0.42" ]]; then
+                log "Dnsmasq save config error: server=127.0.0.42 is already configured. Skip editing DHCP"
+                return
+            else
+                uci add_list dhcp.@dnsmasq[0].podkop_server="$server"
+            fi
+        done
+
+        #iptables -t mangle -A MANGLE_OUTPUT -j MARK --set-mark 0x00000105
+        iptables -t mangle -A OUTPUT -p tcp -j MANGLE_OUTPUT
+        iptables -t mangle -A OUTPUT -p udp -j MANGLE_OUTPUT
+    fi
 }
 
 save_dnsmasq_config() {
@@ -1426,7 +1484,11 @@ sing_box_ruleset_subnets() {
     local tag=$2
 
     # nft
-    nft add element inet PodkopTable podkop_subnets { $subnet }
+    if [ "$FIREWALL" == "nftables" ]; then
+        nft add element inet PodkopTable podkop_subnets { $subnet }
+    else
+        #ToDo
+    fi
 
     # Check if there is a route.rule_set for the specified tag
     local tag_exists=$(jq -r --arg tag "$tag" '
@@ -1878,8 +1940,12 @@ import_community_service_subnet_list_handler() {
             ;;
         "discord")
             URL=$SUBNETS_DISCORD
-            nft add set inet $table podkop_discord_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
-            nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_discord_subnets udp dport { 50000-65535 } meta mark set 0x105 counter
+            if [ "$FIREWALL" == "nftables" ]; then
+                nft add set inet $table podkop_discord_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
+                nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_discord_subnets udp dport { 50000-65535 } meta mark set 0x105 counter
+            else
+                #ToDo
+            fi
             ;;
         *)
             return
@@ -1896,10 +1962,14 @@ import_community_service_subnet_list_handler() {
     fi
 
     while IFS= read -r subnet; do
-        if [ "$service" = "discord" ]; then
-            nft add element inet $table podkop_discord_subnets { $subnet }
+        if [ "$FIREWALL" == "nftables" ]; then
+            if [ "$service" = "discord" ]; then
+                nft add element inet $table podkop_discord_subnets { $subnet }
+            else
+                nft add element inet $table podkop_subnets { $subnet }
+            fi
         else
-            nft add element inet $table podkop_subnets { $subnet }
+            #ToDo
         fi
     done <"/tmp/podkop/$filename"
 }
@@ -2111,9 +2181,13 @@ nft_list_all_traffic_from_ip() {
     local ip="$1"
     local table="PodkopTable"
 
-    if ! nft list chain inet $table mangle | grep -q "ip saddr $ip"; then
-        nft insert rule inet $table mangle iifname "$SRC_INTERFACE" ip saddr $ip meta l4proto { tcp, udp } meta mark set 0x105 counter
-        nft insert rule inet $table mangle ip saddr $ip ip daddr @localv4 return
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! nft list chain inet $table mangle | grep -q "ip saddr $ip"; then
+            nft insert rule inet $table mangle iifname "$SRC_INTERFACE" ip saddr $ip meta l4proto { tcp, udp } meta mark set 0x105 counter
+            nft insert rule inet $table mangle ip saddr $ip ip daddr @localv4 return
+        fi
+    else
+        #ToDo
     fi
 }
 
@@ -2121,10 +2195,14 @@ nft_list_all_traffic_from_ip() {
 nft_add_podkop_subnet() {
     local subnet="$1"
 
-    if is_ipv4_cidr "$subnet"; then
-        nft add element inet PodkopTable podkop_subnets { "$subnet" }
+    if [ "$FIREWALL" == "nftables" ]; then
+        if is_ipv4_cidr "$subnet"; then
+            nft add element inet PodkopTable podkop_subnets { "$subnet" }
+        else
+            log "Invalid subnet format. $subnet is not a valid IPv4 CIDR"
+        fi
     else
-        log "Invalid subnet format. $subnet is not a valid IPv4 CIDR"
+        #ToDo
     fi
 }
 
@@ -2202,17 +2280,25 @@ check_proxy() {
 }
 
 check_nft() {
-    if ! command -v nft >/dev/null 2>&1; then
-        nolog "nft is not installed"
-        return 1
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! command -v nft >/dev/null 2>&1; then
+            nolog "nft is not installed"
+            return 1
+        fi
+    else
+        #ToDo
     fi
 
     nolog "Checking PodkopTable rules..."
 
     # Check if table exists
-    if ! nft list table inet PodkopTable >/dev/null 2>&1; then
-        nolog "❌ PodkopTable not found"
-        return 1
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! nft list table inet PodkopTable >/dev/null 2>&1; then
+            nolog "❌ PodkopTable not found"
+            return 1
+        fi
+    else
+        #ToDo
     fi
 
     local found_hetzner=0
@@ -2245,10 +2331,14 @@ check_nft() {
 
         nolog "Sets statistics:"
         for set_name in $sets; do
-            if nft list set inet PodkopTable $set_name >/dev/null 2>&1; then
-                # Count elements using grep to count commas and add 1 (last element has no comma)
-                local count=$(nft list set inet PodkopTable $set_name 2>/dev/null | grep -o ',\|{' | wc -l)
-                echo "- $set_name: $count elements"
+            if [ "$FIREWALL" == "nftables" ]; then
+                if nft list set inet PodkopTable $set_name >/dev/null 2>&1; then
+                    # Count elements using grep to count commas and add 1 (last element has no comma)
+                    local count=$(nft list set inet PodkopTable $set_name 2>/dev/null | grep -o ',\|{' | wc -l)
+                    echo "- $set_name: $count elements"
+                fi
+            else
+                #ToDo
             fi
         done
 
@@ -2256,7 +2346,11 @@ check_nft() {
 
         # Create a temporary file for processing
         local tmp_file=$(mktemp)
-        nft list table inet PodkopTable > "$tmp_file"
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft list table inet PodkopTable > "$tmp_file"
+        else
+            #ToDo
+        fi
 
         # Extract chain configurations without element listings
         sed -n '/chain mangle {/,/}/p' "$tmp_file" | grep -v "elements" | grep -v "^[[:space:]]*[0-9]"
@@ -2267,7 +2361,11 @@ check_nft() {
     else
         # Simple view as originally implemented
         nolog "Sets configuration:"
-        nft list table inet PodkopTable
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft list table inet PodkopTable
+        else
+            #ToDo
+        fi
     fi
 
     nolog "NFT check completed"
