@@ -150,7 +150,7 @@ start_main() {
         if [ "$FIREWALL" == "nftables" ]; then
             nft insert rule inet PodkopTable mangle udp dport 123 return
         else
-            iptables -t mangle -A PROXY -p udp -dport 123 -j RETURN
+            iptables -t mangle -A PREROUTING -p udp -dport 123 -j RETURN
         fi
     fi
 
@@ -208,8 +208,21 @@ stop_main() {
             nft delete table inet PodkopTable
         fi
     else
-        #ToDo
-        iptables -t mangle -X PROXY
+        log "Delete iptables rules"
+
+        iptables -t mangle -D PREROUTING -p udp -dport 123 -j RETURN > /dev/null 2>&1
+
+        iptables -t mangle -D PREROUTING -i br-lan -d 198.18.0.0/15 -p tcp -j MARK --set-mark 0x105 > /dev/null 2>&1
+        iptables -t mangle -D PREROUTING -i br-lan -d 198.18.0.0/15 -p udp -j MARK --set-mark 0x105 > /dev/null 2>&1
+
+        iptables -t mangle -D PREROUTING -j PROXY > /dev/null 2>&1
+        iptables -t mangle -F PROXY
+        iptables -t mangle -X PROXY > /dev/null 2>&1
+
+        iptables -t mangle -D OUTPUT -p tcp -j MANGLE_OUTPUT > /dev/null 2>&1
+        iptables -t mangle -D OUTPUT -p udp -j MANGLE_OUTPUT > /dev/null 2>&1
+        iptables -t mangle -F MANGLE_OUTPUT
+        iptables -t mangle -X MANGLE_OUTPUT > /dev/null 2>&1
     fi
 
     log "Flush ip rule"
@@ -379,8 +392,6 @@ nft_interfaces() {
                 nft add element inet $table $set_name { $interface }
                 fi
             done
-        else
-            #ToDo
         fi
 
         SRC_INTERFACE=@$set_name
@@ -432,6 +443,9 @@ create_nft_table() {
         nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto tcp meta mark set 0x00000105 counter
         nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto udp meta mark set 0x00000105 counter
     else
+        nft_interfaces
+
+        log "Create localv4list"
         localv4list="0.0.0.0/8
             10.0.0.0/8
             127.0.0.0/8
@@ -447,26 +461,22 @@ create_nft_table() {
             240.0.0.0/4"
 
         log "Create iptables rules"
+        iptables -t mangle -A PREROUTING -i "$SRC_INTERFACE" -d "$FAKEIP" -p tcp -j MARK --set-mark 0x105
+        iptables -t mangle -A PREROUTING -i "$SRC_INTERFACE" -d "$FAKEIP" -p udp -j MARK --set-mark 0x105
+
         iptables -t mangle -N PROXY
-        iptables -t mangle -A PROXY -p tcp -j TPROXY --on-port 1602 --tproxy-mark 0x105
-        iptables -t mangle -A PROXY -p udp -j TPROXY --on-port 1602 --tproxy-mark 0x105
+        iptables -t mangle -A PROXY -p tcp -j TPROXY --on-port 1602 -m mark --mark 0x105
+        iptables -t mangle -A PROXY -p udp -j TPROXY --on-port 1602 -m mark --mark 0x105
         iptables -t mangle -A PREROUTING -j PROXY
 
         iptables -t mangle -N MANGLE_OUTPUT
         for ip in $localv4list; do
-            iptables -t mangle -A MANGLE_OUTPUT -d $ip -j RETURN
+            iptables -t mangle -A MANGLE_OUTPUT -d "$ip" -j RETURN
         done
 
-        for server in $(uci get dhcp.@dnsmasq[0].server 2>/dev/null); do
-            if [[ "$server" == "127.0.0.42" ]]; then
-                log "Dnsmasq save config error: server=127.0.0.42 is already configured. Skip editing DHCP"
-                return
-            else
-                uci add_list dhcp.@dnsmasq[0].podkop_server="$server"
-            fi
-        done
+        iptables -t mangle -A MANGLE_OUTPUT -d "$FAKEIP" -p tcp -j MARK --set-mark 0x00000105
+        iptables -t mangle -A MANGLE_OUTPUT -d "$FAKEIP" -p udp -j MARK --set-mark 0x00000105
 
-        #iptables -t mangle -A MANGLE_OUTPUT -j MARK --set-mark 0x00000105
         iptables -t mangle -A OUTPUT -p tcp -j MANGLE_OUTPUT
         iptables -t mangle -A OUTPUT -p udp -j MANGLE_OUTPUT
     fi
@@ -799,7 +809,7 @@ sing_box_inbound_proxy() {
     --arg listen_port "$listen_port" \
     '{
         "log": {
-            "level": "warn"
+            "level": "debug"
         },
         "inbounds": [
             {
@@ -1486,8 +1496,6 @@ sing_box_ruleset_subnets() {
     # nft
     if [ "$FIREWALL" == "nftables" ]; then
         nft add element inet PodkopTable podkop_subnets { $subnet }
-    else
-        #ToDo
     fi
 
     # Check if there is a route.rule_set for the specified tag
@@ -1943,8 +1951,6 @@ import_community_service_subnet_list_handler() {
             if [ "$FIREWALL" == "nftables" ]; then
                 nft add set inet $table podkop_discord_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
                 nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_discord_subnets udp dport { 50000-65535 } meta mark set 0x105 counter
-            else
-                #ToDo
             fi
             ;;
         *)
@@ -1968,8 +1974,6 @@ import_community_service_subnet_list_handler() {
             else
                 nft add element inet $table podkop_subnets { $subnet }
             fi
-        else
-            #ToDo
         fi
     done <"/tmp/podkop/$filename"
 }
@@ -2186,8 +2190,6 @@ nft_list_all_traffic_from_ip() {
             nft insert rule inet $table mangle iifname "$SRC_INTERFACE" ip saddr $ip meta l4proto { tcp, udp } meta mark set 0x105 counter
             nft insert rule inet $table mangle ip saddr $ip ip daddr @localv4 return
         fi
-    else
-        #ToDo
     fi
 }
 
@@ -2201,8 +2203,6 @@ nft_add_podkop_subnet() {
         else
             log "Invalid subnet format. $subnet is not a valid IPv4 CIDR"
         fi
-    else
-        #ToDo
     fi
 }
 
@@ -2285,8 +2285,6 @@ check_nft() {
             nolog "nft is not installed"
             return 1
         fi
-    else
-        #ToDo
     fi
 
     nolog "Checking PodkopTable rules..."
@@ -2297,8 +2295,6 @@ check_nft() {
             nolog "❌ PodkopTable not found"
             return 1
         fi
-    else
-        #ToDo
     fi
 
     local found_hetzner=0
@@ -2337,8 +2333,6 @@ check_nft() {
                     local count=$(nft list set inet PodkopTable $set_name 2>/dev/null | grep -o ',\|{' | wc -l)
                     echo "- $set_name: $count elements"
                 fi
-            else
-                #ToDo
             fi
         done
 
@@ -2348,8 +2342,6 @@ check_nft() {
         local tmp_file=$(mktemp)
         if [ "$FIREWALL" == "nftables" ]; then
             nft list table inet PodkopTable > "$tmp_file"
-        else
-            #ToDo
         fi
 
         # Extract chain configurations without element listings
@@ -2363,8 +2355,6 @@ check_nft() {
         nolog "Sets configuration:"
         if [ "$FIREWALL" == "nftables" ]; then
             nft list table inet PodkopTable
-        else
-            #ToDo
         fi
     fi
 
