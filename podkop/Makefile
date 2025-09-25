@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=podkop
 
-PKG_VERSION := $(if $(PKG_VERSION),$(PKG_VERSION),dev_$(shell date +%d%m%Y))
+PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),21.02_dev_$(shell date +%d%m%Y))
 
 PKG_RELEASE:=1
 
@@ -14,7 +14,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/podkop
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+curl +jq +coreutils-base64
+	DEPENDS:=+sing-box +curl +jq +kmod-ipt-tproxy +coreutils-base64
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Domain routing app
 	URL:=https://podkop.net
