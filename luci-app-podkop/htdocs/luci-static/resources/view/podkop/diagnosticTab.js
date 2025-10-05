@@ -163,7 +163,7 @@ async function checkFakeIP() {
 async function checkFakeIPCLI() {
     try {
         return new Promise((resolve) => {
-            safeExec('nslookup', ['-timeout=2', constants.FAKEIP_CHECK_DOMAIN, '127.0.0.42'], 'P0_PRIORITY', result => {
+            safeExec('nslookup', [constants.FAKEIP_CHECK_DOMAIN, '127.0.0.42'], 'P0_PRIORITY', result => {
                 if (result.stdout && result.stdout.includes('198.18')) {
                     resolve(createStatus('working', 'working on router', 'SUCCESS'));
                 } else {
@@ -524,7 +524,7 @@ let createStatusSection = async function () {
                         title: 'Active Connections'
                     }),
                     ButtonFactory.createModalButton({
-                        label: _('Check NFT Rules'),
+                        label: _('Check Firewall Rules'),
                         command: 'check_nft',
                         title: _('NFT Rules')
                     }),
