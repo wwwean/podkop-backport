@@ -34,9 +34,9 @@ endef
 define Package/podkop/prerm
 #!/bin/sh
 
-grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables
+grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables > /dev/null 2>&1
 
-/etc/init.d/podkop stop
+/etc/init.d/podkop stop > /dev/null 2>&1
 
 exit 0
 endef

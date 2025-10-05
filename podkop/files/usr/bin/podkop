@@ -378,8 +378,10 @@ nft_interfaces() {
     config_list_foreach "main" "iface" "process_interfaces"
     if [ "$iface_flag" -eq 0 ]; then
         SRC_INTERFACE="br-lan"
+        SRC_INTERFACE=$(echo "$SRC_INTERFACE" | sed "s/[ ,\/]//g")
     elif [ $(echo "$INTERFACES_LIST" | wc -w) -eq 1 ]; then
         SRC_INTERFACE=$INTERFACES_LIST
+        SRC_INTERFACE=$(echo "$SRC_INTERFACE" | sed "s/[ ,\/]//g")
     else
         local set_name="interfaces"
         if [ "$FIREWALL" == "nftables" ]; then
@@ -2393,6 +2395,7 @@ check_nft() {
             rm -f "$tmp_file"
         else
             iptables -t mangle -L PODKOP_PREROUTING --line-numbers
+            echo "------------------------"
             iptables -t mangle -L PODKOP_OUTPUT --line-numbers
         fi
     else
@@ -2402,6 +2405,7 @@ check_nft() {
             nft list table inet PodkopTable
         else
             iptables -t mangle -L PODKOP_PREROUTING --line-numbers
+            echo "------------------------"
             iptables -t mangle -L PODKOP_OUTPUT --line-numbers
         fi
     fi
