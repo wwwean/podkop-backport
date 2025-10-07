@@ -439,7 +439,7 @@ create_nft_table() {
         nft add rule inet $table proxy meta mark 0x105 meta l4proto tcp tproxy ip to :1602 counter
         nft add rule inet $table proxy meta mark 0x105 meta l4proto udp tproxy ip to :1602 counter
 
-        nft add rule inet $table mangle_output ip daddr @localv4 return
+        nft add rule inet $table mangle_output ip daddr @localv4 return counter
         nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto tcp meta mark set 0x00000105 counter
         nft add rule inet $table mangle_output ip daddr @podkop_subnets meta l4proto udp meta mark set 0x00000105 counter
         nft add rule inet $table mangle_output ip daddr 198.18.0.0/15 meta l4proto tcp meta mark set 0x00000105 counter
@@ -537,7 +537,7 @@ dnsmasq_restore() {
     local cachesize=$(uci get dhcp.@dnsmasq[0].podkop_cachesize 2>/dev/null)
     if [[ "$cachesize" == "unset" ]]; then
         log "dnsmasq revert: cachesize is unset"
-        uci -q delete dhcp.@dnsmasq[0].cachesize
+        uci -q delete dhcp.@dnsmasq[0].cachesize 2>/dev/null
     else
         uci set dhcp.@dnsmasq[0].cachesize="$cachesize" 2>/dev/null
     fi
@@ -545,7 +545,7 @@ dnsmasq_restore() {
     local noresolv=$(uci get dhcp.@dnsmasq[0].podkop_noresolv 2>/dev/null)
     if [[ "$noresolv" == "unset" ]]; then
         log "dnsmasq revert: noresolv is unset"
-        uci -q delete dhcp.@dnsmasq[0].noresolv
+        uci -q delete dhcp.@dnsmasq[0].noresolv 2>/dev/null
     else
         uci set dhcp.@dnsmasq[0].noresolv="$noresolv" 2>/dev/null
     fi
