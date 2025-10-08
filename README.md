@@ -24,8 +24,8 @@ https://podkop.net/
 
 ## 2. Установка Podkop-backport
 ### Для нормальной работы понадобятся следующие пакеты
--a. Для версии OpenWRT 22 и новее: kmod-nft-tproxy
--b. Для версии OpenWRT до 21 включительно: kmod-ipt-tproxy
+a. Для версии OpenWRT 22 и новее: kmod-nft-tproxy\
+b. Для версии OpenWRT до 21 включительно: kmod-ipt-tproxy
 
 ## 2. Установка Luci App Podkop
 Устанавливаем через через Luci или через ssh
