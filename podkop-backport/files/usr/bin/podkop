@@ -40,7 +40,7 @@ COLOR_RESET="\033[0m"
 
 # Firewall
 FIREWALL=nftables
-if command iptables -V > /dev/null 2>&1; then
+if command iptables -V 2>/dev/null; then
     FIREWALL=iptables
 fi
 
@@ -150,7 +150,7 @@ start_main() {
         if [ "$FIREWALL" == "nftables" ]; then
             nft insert rule inet PodkopTable mangle udp dport 123 return
         else
-            iptables -t mangle -A PODKOP_PREROUTING -p udp -dport 123 -j RETURN
+            iptables -t mangle -A PODKOP_PREROUTING -p udp --dport 123 -j RETURN
         fi
     fi
 
@@ -210,19 +210,19 @@ stop_main() {
     else
         log "Flush iptables"
 
-        iptables -t mangle -D PODKOP_PREROUTING -p udp -dport 123 -j RETURN > /dev/null 2>&1
+        iptables -t mangle -D PODKOP_PREROUTING -p udp -dport 123 -j RETURN 2>/dev/null
 
-        iptables -t mangle -D PREROUTING -j PODKOP_PREROUTING > /dev/null 2>&1
-        iptables -t mangle -F PODKOP_PREROUTING > /dev/null 2>&1
-        iptables -t mangle -X PODKOP_PREROUTING > /dev/null 2>&1
+        iptables -t mangle -D PREROUTING -j PODKOP_PREROUTING 2>/dev/null
+        iptables -t mangle -F PODKOP_PREROUTING 2>/dev/null
+        iptables -t mangle -X PODKOP_PREROUTING 2>/dev/null
 
-        iptables -t mangle -D OUTPUT -j PODKOP_OUTPUT > /dev/null 2>&1
-        iptables -t mangle -F PODKOP_OUTPUT > /dev/null 2>&1
-        iptables -t mangle -X PODKOP_OUTPUT > /dev/null 2>&1
+        iptables -t mangle -D OUTPUT -j PODKOP_OUTPUT 2>/dev/null
+        iptables -t mangle -F PODKOP_OUTPUT 2>/dev/null
+        iptables -t mangle -X PODKOP_OUTPUT 2>/dev/null
         
-        ipset destroy localv4 > /dev/null 2>&1
-        ipset destroy podkop_subnets > /dev/null 2>&1
-        ipset destroy podkop_discord_subnets > /dev/null 2>&1
+        ipset destroy localv4 2>/dev/null
+        ipset destroy podkop_subnets 2>/dev/null
+        ipset destroy podkop_discord_subnets 2>/dev/null
     fi
 
     log "Flush ip rule"
@@ -462,14 +462,14 @@ create_nft_table() {
             224.0.0.0/4
             240.0.0.0/4"
         
-        ipset create localv4 hash:net > /dev/null 2>&1
+        ipset create localv4 hash:net 2>/dev/null
         for ip in $localv4list; do
-            ipset add localv4 "$ip" > /dev/null 2>&1
+            ipset add localv4 "$ip" 2>/dev/null
         done
 
         log "Create iptables rules"
 
-        ipset create podkop_subnets hash:net > /dev/null 2>&1
+        ipset create podkop_subnets hash:net 2>/dev/null
 
         iptables -t mangle -N PODKOP_PREROUTING
         iptables -t mangle -A PODKOP_PREROUTING -i "$SRC_INTERFACE" -p tcp -m set --match-set podkop_subnets dst -j MARK --set-mark 0x105
@@ -1965,7 +1965,7 @@ import_community_service_subnet_list_handler() {
                 nft add set inet $table podkop_discord_subnets { type ipv4_addr\; flags interval\; auto-merge\; }
                 nft add rule inet $table mangle iifname "$SRC_INTERFACE" ip daddr @podkop_discord_subnets udp dport { 50000-65535 } meta mark set 0x105 counter
             else
-                ipset create podkop_discord_subnets hash:net > /dev/null 2>&1
+                ipset create podkop_discord_subnets hash:net 2>/dev/null
                 iptables -t mangle -A PODKOP_PREROUTING -i "$SRC_INTERFACE" -p udp -m set --match-set podkop_discord_subnets dst -m multiport --dports 50000:65535 -j MARK --set-mark 0x105
             fi
             ;;
@@ -1992,9 +1992,9 @@ import_community_service_subnet_list_handler() {
             fi
         else
             if [ "$service" = "discord" ]; then
-                ipset add podkop_discord_subnets $subnet > /dev/null 2>&1
+                ipset add podkop_discord_subnets $subnet 2>/dev/null
             else
-                ipset add podkop_subnets $subnet > /dev/null 2>&1
+                ipset add podkop_subnets $subnet 2>/dev/null
             fi
         fi
     done <"/tmp/podkop/$filename"
@@ -2213,7 +2213,7 @@ nft_list_all_traffic_from_ip() {
             nft insert rule inet $table mangle ip saddr $ip ip daddr @localv4 return
         fi
     else
-        if ! iptables -t mangle -C PODKOP_PREROUTING -i "$SRC_INTERFACE" -s $ip -p tcp -j MARK --set-mark 0x105 > /dev/null 2>&1; then
+        if ! iptables -t mangle -C PODKOP_PREROUTING -i "$SRC_INTERFACE" -s $ip -p tcp -j MARK --set-mark 0x105 2>/dev/null; then
             iptables -t mangle -A PODKOP_PREROUTING -i "$SRC_INTERFACE" -s $ip -p tcp -j MARK --set-mark 0x105
             iptables -t mangle -A PODKOP_PREROUTING -i "$SRC_INTERFACE" -s $ip -p udp -j MARK --set-mark 0x105
             iptables -t mangle -A PODKOP_PREROUTING -s $ip -m set --match-set localv4 dst -j RETURN
@@ -2233,7 +2233,7 @@ nft_add_podkop_subnet() {
         fi
     else
         if is_ipv4_cidr "$subnet"; then
-            ipset add podkop_subnets $subnet > /dev/null 2>&1
+            ipset add podkop_subnets $subnet 2>/dev/null
         else
             log "Invalid subnet format. $subnet is not a valid IPv4 CIDR"
         fi
@@ -2330,7 +2330,7 @@ check_nft() {
             return 1
         fi
     else
-        if ! iptables -t mangle -C PODKOP_PREROUTING -p tcp -j TPROXY --on-port 1602 -m mark --mark 0x105 > /dev/null 2>&1; then
+        if ! iptables -t mangle -C PODKOP_PREROUTING -p tcp -j TPROXY --on-port 1602 -m mark --mark 0x105 2>/dev/null; then
             nolog "❌ Something get wrong with iptables"
             return 1
         fi
@@ -2373,7 +2373,7 @@ check_nft() {
                     echo "- $set_name: $count elements"
                 fi
             else
-                if ipset list $set_name > /dev/null 2>&1; then
+                if ipset list $set_name 2>/dev/null; then
                     # Count elements using grep to count commas and add 1 (last element has no comma)
                     local count=$(ipset list $set_name | sed -n 's/Number of entries: \([0-9]\+\)/\1/p')
                     echo "- $set_name: $count elements"
