@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=podkop
 
-PKG_VERSION := $(if $(PKG_VERSION),$(PKG_VERSION),dev_$(shell date +%d%m%Y))
+PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),21.02_dev_$(shell date +%d%m%Y))
 
 PKG_RELEASE:=1
 
@@ -14,7 +14,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/podkop
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+sing-box +curl +jq +kmod-nft-tproxy +coreutils-base64
+	DEPENDS:=+sing-box +curl +jq +coreutils-base64
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Domain routing app
 	URL:=https://podkop.net
@@ -34,9 +34,9 @@ endef
 define Package/podkop/prerm
 #!/bin/sh
 
-grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables
+grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables > /dev/null 2>&1
 
-/etc/init.d/podkop stop
+/etc/init.d/podkop stop > /dev/null 2>&1
 
 exit 0
 endef
