@@ -13,7 +13,7 @@ LUCI_LANG.ru:=Русский (Russian)
 LUCI_LANG.en:=English
 
 PKG_LICENSE:=GPL-2.0-or-later
-PKG_MAINTAINER:=ITDog <podkop@itdog.info>
+PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane
 
 LUCI_LANGUAGES:=en ru
 

@@ -6,7 +6,7 @@ PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),21.02_dev_$(shell date +%d%m%Y)
 
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=ITDog <podkop@itdog.info>
+PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane
 PKG_LICENSE:=GPL-2.0-or-later
 
 include $(INCLUDE_DIR)/package.mk
@@ -34,7 +34,7 @@ endef
 define Package/podkop/prerm
 #!/bin/sh
 
-grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables > /dev/null 2>&1
+grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables 2>/dev/null
 
 /etc/init.d/podkop stop > /dev/null 2>&1
 
