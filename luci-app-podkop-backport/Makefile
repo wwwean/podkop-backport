@@ -1,19 +1,19 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=luci-app-podkop-backport
+PKG_NAME:=luci-app-podkop
 
-PKG_VERSION := $(if $(PKG_VERSION),$(PKG_VERSION),dev_$(shell date +%d%m%Y))
+PKG_VERSION := $(if $(PKG_VERSION),$(PKG_VERSION),backport_dev_$(shell date +%d%m%Y))
 
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI podkop app
-LUCI_DEPENDS:=+luci-base +podkop-backport
+LUCI_DEPENDS:=+luci-base +podkop
 LUCI_PKGARCH:=all
 LUCI_LANG.ru:=Русский (Russian)
 LUCI_LANG.en:=English
 
 PKG_LICENSE:=GPL-2.0-or-later
-PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane
+PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane <wwwean@gmail.com>
 
 LUCI_LANGUAGES:=en ru
 

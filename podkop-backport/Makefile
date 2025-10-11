@@ -1,27 +1,27 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=podkop-backport
+PKG_NAME:=podkop
 
-PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),dev_$(shell date +%d%m%Y))
+PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),backport_dev_$(shell date +%d%m%Y))
 
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane
+PKG_MAINTAINER:=ITDog <podkop@itdog.info>, ane <wwwean@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/podkop-backport
+define Package/podkop
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+sing-box-backport +curl +jq +coreutils-base64
+	DEPENDS:=+sing-box +curl +jq +coreutils-base64
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Domain routing app
 	URL:=https://podkop.net
 	PKGARCH:=all
 endef
 
-define Package/podkop-backport/description
+define Package/podkop/description
 	Domain routing. Use of VLESS, Shadowsocks technologies
 endef
 
@@ -31,7 +31,7 @@ endef
 define Build/Compile
 endef
 
-define Package/podkop-backport/prerm
+define Package/podkop/prerm
 #!/bin/sh
 
 grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables 2>/dev/null
@@ -41,11 +41,11 @@ grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/ipro
 exit 0
 endef
 
-define Package/podkop-backport/conffiles
+define Package/podkop/conffiles
 /etc/config/podkop
 endef
 
-define Package/podkop-backport/install
+define Package/podkop/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/podkop $(1)/etc/init.d/podkop
 	sed -i "s/VERSION_FROM_MAKEFILE/$(PKG_VERSION)/g" $(1)/etc/init.d/podkop
@@ -57,4 +57,4 @@ define Package/podkop-backport/install
 	$(INSTALL_BIN) ./files/usr/bin/podkop $(1)/usr/bin/podkop
 endef
 
-$(eval $(call BuildPackage,podkop-backport))
+$(eval $(call BuildPackage,podkop))
