@@ -490,8 +490,8 @@ msgstr "LuCI App: "
 msgid "Podkop: "
 msgstr "Podkop: "
 
-msgid "Check NFT Rules"
-msgstr "Проверить правила NFT"
+msgid "Check Firewall Rules"
+msgstr "Проверить правила Firewall"
 
 msgid "Update Lists"
 msgstr "Обновить списки"
@@ -646,8 +646,8 @@ msgstr "Версия OpenWrt: "
 msgid "Check DNSMasq"
 msgstr "Проверить DNSMasq"
 
-msgid "Check NFT Rules"
-msgstr "Проверить правила NFT"
+msgid "Check Firewall Rules"
+msgstr "Проверить правила Firewall"
 
 msgid "Update Lists"
 msgstr "Обновить списки"
@@ -655,8 +655,8 @@ msgstr "Обновить списки"
 msgid "Lists Update Results"
 msgstr "Результаты обновления списков"
 
-msgid "NFT Rules"
-msgstr "Правила NFT"
+msgid "Firewall Rules"
+msgstr "Правила Firewall"
 
 msgid "GitHub Connectivity"
 msgstr "Подключение к GitHub"

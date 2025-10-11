@@ -523,7 +523,7 @@ msgstr ""
 msgid "Podkop: "
 msgstr ""
 
-msgid "Check NFT Rules"
+msgid "Check Firewall Rules"
 msgstr ""
 
 msgid "Update Lists"
@@ -556,10 +556,10 @@ msgstr ""
 msgid "Proxy Check Results"
 msgstr ""
 
-msgid "NFT Rules"
+msgid "Firewall Rules"
 msgstr ""
 
-msgid "Show current nftables rules and statistics"
+msgid "Show current Firewall rules and statistics"
 msgstr ""
 
 msgid "Check Rules"
@@ -997,7 +997,7 @@ msgstr ""
 msgid "Check DNSMasq"
 msgstr ""
 
-msgid "Check NFT Rules"
+msgid "Check Firewall Rules"
 msgstr ""
 
 msgid "Update Lists"
@@ -1006,7 +1006,7 @@ msgstr ""
 msgid "Lists Update Results"
 msgstr ""
 
-msgid "NFT Rules"
+msgid "Firewall Rules"
 msgstr ""
 
 msgid "GitHub Connectivity"
