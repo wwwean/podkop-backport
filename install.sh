@@ -4,6 +4,9 @@ REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 
+# Check OpenWrt version
+OPENWRT_VERSION=$(cat /etc/openwrt_release | grep DISTRIB_RELEASE | cut -d"'" -f2 | cut -d'.' -f1)
+
 # Cached flag to switch between ipk or apk package managers
 PKG_IS_APK=0
 command -v apk >/dev/null 2>&1 && PKG_IS_APK=1
@@ -13,6 +16,17 @@ mkdir -p "$DOWNLOAD_DIR"
 
 msg() {
     printf "\033[32;1m%s\033[0m\n" "$1"
+}
+
+response_check () {
+    if command -v curl &> /dev/null; then
+        check_response=$(curl -s "$REPO")
+
+        if echo "$check_response" | grep -q 'API rate limit '; then
+            msg "You've reached rate limit from GitHub. Repeat in five minutes."
+            exit 1
+        fi
+    fi
 }
 
 pkg_is_installed () {
@@ -61,27 +75,14 @@ pkg_install() {
 }
 
 main() {
-    check_system
-    sing_box
-
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-
     pkg_list_update || { echo "Packages list update failed"; exit 1; }
 
-    if [ -f "/etc/init.d/podkop" ]; then
-        msg "Podkop is already installed. Upgraded..."
-    else
-        msg "Installed podkop..."
-    fi
+    msg "Checking system..."
+    check_system
 
-    if command -v curl &> /dev/null; then
-        check_response=$(curl -s "$REPO")
-
-        if echo "$check_response" | grep -q 'API rate limit '; then
-            msg "You've reached rate limit from GitHub. Repeat in five minutes."
-            exit 1
-        fi
-    fi
+    msg "Downloading packages..."
+    response_check
 
     local grep_url_pattern
     if [ "$PKG_IS_APK" -eq 1 ]; then
@@ -120,6 +121,16 @@ main() {
         exit 1
     fi
 
+    msg "Checking Sing-box..."
+    check_sing_box
+
+    msg "Checking Podkop..."
+    if [ -f "/etc/init.d/podkop" ]; then
+        msg "Podkop is already installed. Upgraded..."
+    else
+        msg "Installing podkop..."
+    fi
+
     for pkg in podkop luci-app-podkop; do
         file=$(ls "$DOWNLOAD_DIR" | grep "^$pkg" | head -n 1)
         if [ -n "$file" ]; then
@@ -129,12 +140,12 @@ main() {
         fi
     done
 
-    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop-ru" | head -n 1)
+    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru" | head -n 1)
     if [ -n "$ru" ]; then
         if pkg_is_installed luci-i18n-podkop-ru; then
-                msg "Upgraded ru translation..."
-                pkg_remove luci-i18n-podkop*
-                pkg_install "$DOWNLOAD_DIR/$ru"
+            msg "Upgraded ru translation..."
+            pkg_remove luci-i18n-podkop*
+            pkg_install "$DOWNLOAD_DIR/$ru"
         else
             msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
@@ -156,22 +167,13 @@ main() {
         fi
     fi
 
-    find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
+    find "$DOWNLOAD_DIR" -type f -name '*podkop*' -o -name 'sing-box*' -exec rm {} \;
 }
 
 check_system() {
     # Get router model
     MODEL=$(cat /tmp/sysinfo/model)
     msg "Router model: $MODEL"
-
-    # Check OpenWrt version
-    # openwrt_version=$(cat /etc/openwrt_release | grep DISTRIB_RELEASE | cut -d"'" -f2 | cut -d'.' -f1)
-    # if [ "$openwrt_version" = "23" ]; then
-    #     msg "OpenWrt 23.05 не поддерживается начиная с podkop 0.5.0"
-    #     msg "Для OpenWrt 23.05 используйте podkop версии 0.4.11 или устанавливайте зависимости и podkop вручную"
-    #     msg "Подробности: https://podkop.net/docs/install/#%d1%83%d1%81%d1%82%d0%b0%d0%bd%d0%be%d0%b2%d0%ba%d0%b0-%d0%bd%d0%b0-2305"
-    #     exit 1
-    # fi
 
     # Check available space
     AVAILABLE_SPACE=$(df /overlay | awk 'NR==2 {print $4}')
@@ -209,21 +211,53 @@ check_system() {
         esac
     done
     fi
+
+    if [ "$OPENWRT_VERSION" = "21" ]; then
+        msg "Check and Install kmod-ipt-tproxy"
+        pkg_install kmod-ipt-tproxy
+    else
+        msg "Check and Install kmod-nft-tproxy"
+        pkg_install kmod-nft-tproxy
+    fi
 }
 
-sing_box() {
-    if ! pkg_is_installed "^sing-box"; then
-        return
-    fi
+check_sing_box() {
+    # if ! pkg_is_installed "^sing-box"; then
+    #     msg "Sing-box is not installed. Installing Sing-box..."
+    #     pkg_install "$DOWNLOAD_DIR/sing-box*"
+    #     sleep 5
+    #     return
+    # fi
 
-    sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
-    required_version="1.12.4"
+    # sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
+    # required_version="1.12.4"
 
-    if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
-        msg "sing-box version $sing_box_version is older than required $required_version"
-        msg "Removing old version..."
-        service podkop stop
-        pkg_remove sing-box
+    # if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
+    #     msg "Sing-box version $sing_box_version is older than required $required_version"
+    #     msg "Removing old version of Sing-box..."
+    #     service podkop stop
+    #     pkg_remove sing-box
+    # fi
+
+    if pkg_is_installed "^sing-box"; then
+        sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
+        required_version="1.12.4"
+
+        if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
+            msg "Sing-box version $sing_box_version is older than required $required_version"
+            msg "Updating Sing-box..."
+            service podkop stop
+            pkg_install "$DOWNLOAD_DIR/sing-box*"
+            sleep 5
+            msg "Sing-box has been updated"
+            return
+        fi
+        msg "Sing-box installed and up to date"
+    else
+        msg "Sing-box is not installed. Installing Sing-box..."
+        pkg_install "$DOWNLOAD_DIR/sing-box*"
+        sleep 5
+        msg "Sing-box has been installed"
     fi
 }
 
