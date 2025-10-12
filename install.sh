@@ -114,9 +114,7 @@ main() {
         if [ $attempt -eq $COUNT ]; then
             msg "Failed to download $filename after $COUNT attempts"
         fi
-    done <<
-    EOF (wget -qO- "$REPO" | grep -o "$grep_url_pattern")
-    EOF
+    done < <(wget -qO- "$REPO" | grep -o "$grep_url_pattern")
 
     if [ $download_success -eq 0 ]; then
         msg "No packages were downloaded successfully"
