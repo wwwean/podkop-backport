@@ -149,9 +149,10 @@ EOF
             pkg_remove luci-i18n-podkop*
             pkg_install "$DOWNLOAD_DIR/$ru"
         else
-            msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
+            #msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
+            read -r -p "Русский язык интерфейса ставим? y/n (Need a Russian translation?): " RUS
             while true; do
-                read -r -p '' RUS
+                #read -r -p '' RUS
                 case $RUS in
                 y)
                     pkg_remove luci-i18n-podkop*
