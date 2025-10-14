@@ -1,6 +1,6 @@
 #!/bin/sh
 
-REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
+REPO="https://api.github.com/repos/itdoginfo/podkop/releases/latest"
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 
