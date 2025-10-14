@@ -1,6 +1,6 @@
 #!/bin/sh
 
-REPO="https://api.github.com/repos/itdoginfo/podkop/releases/latest"
+REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 
@@ -137,8 +137,8 @@ EOF
         file=$(ls "$DOWNLOAD_DIR" | grep "^$pkg" | head -n 1)
         if [ -n "$file" ]; then
             msg "Installing $file"
-            #pkg_install "$DOWNLOAD_DIR/$file"
-            sleep 3
+            pkg_install "$DOWNLOAD_DIR/$file"
+            sleep 5
         fi
     done
 
@@ -146,16 +146,16 @@ EOF
     if [ -n "$ru" ]; then
         if pkg_is_installed luci-i18n-podkop-ru; then
             msg "Upgraded ru translation..."
-            #pkg_remove luci-i18n-podkop*
-            #pkg_install "$DOWNLOAD_DIR/$ru"
+            pkg_remove luci-i18n-podkop*
+            pkg_install "$DOWNLOAD_DIR/$ru"
         else
             msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
                 read -r -p '' RUS
                 case $RUS in
                 y)
-                    #pkg_remove luci-i18n-podkop*
-                    #pkg_install "$DOWNLOAD_DIR/$ru"
+                    pkg_remove luci-i18n-podkop*
+                    pkg_install "$DOWNLOAD_DIR/$ru"
                     break
                     ;;
                 n)
@@ -224,23 +224,6 @@ check_system() {
 }
 
 check_sing_box() {
-    # if ! pkg_is_installed "^sing-box"; then
-    #     msg "Sing-box is not installed. Installing Sing-box..."
-    #     pkg_install "$DOWNLOAD_DIR/sing-box*"
-    #     sleep 5
-    #     return
-    # fi
-
-    # sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
-    # required_version="1.12.4"
-
-    # if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
-    #     msg "Sing-box version $sing_box_version is older than required $required_version"
-    #     msg "Removing old version of Sing-box..."
-    #     service podkop stop
-    #     pkg_remove sing-box
-    # fi
-
     if pkg_is_installed "^sing-box"; then
         sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
         required_version="1.12.4"
@@ -248,8 +231,8 @@ check_sing_box() {
         if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
             msg "Sing-box version $sing_box_version is older than required $required_version"
             msg "Updating Sing-box..."
-            #service podkop stop
-            #pkg_install "$DOWNLOAD_DIR/sing-box*"
+            service podkop stop > /dev/null 2>&1
+            pkg_install "$DOWNLOAD_DIR/sing-box*"
             sleep 5
             msg "Sing-box has been updated"
             return
@@ -257,7 +240,7 @@ check_sing_box() {
         msg "Sing-box installed and up to date"
     else
         msg "Sing-box is not installed. Installing Sing-box..."
-        #pkg_install "$DOWNLOAD_DIR/sing-box*"
+        pkg_install "$DOWNLOAD_DIR/sing-box*"
         sleep 5
         msg "Sing-box has been installed"
     fi
