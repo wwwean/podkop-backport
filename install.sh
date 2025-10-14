@@ -142,17 +142,16 @@ EOF
         fi
     done
 
-    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru*" | head -n 1)
+    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru" | head -n 1)
     if [ -n "$ru" ]; then
         if pkg_is_installed luci-i18n-podkop-ru; then
             msg "Upgraded ru translation..."
             pkg_remove luci-i18n-podkop*
             pkg_install "$DOWNLOAD_DIR/$ru"
         else
-            #msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
-            read -r -p "Русский язык интерфейса ставим? y/n (Need a Russian translation?): " RUS
+            msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
-                #read -r -p '' RUS
+                read -r -p '' RUS
                 case $RUS in
                 y)
                     pkg_remove luci-i18n-podkop*
