@@ -92,6 +92,7 @@ main() {
     fi
 
     download_success=0
+    wget -qO- "$REPO" | grep -o "$grep_url_pattern" |
     while read -r url; do
         filename=$(basename "$url")
         filepath="$DOWNLOAD_DIR/$filename"
@@ -114,7 +115,7 @@ main() {
         if [ $attempt -eq $COUNT ]; then
             msg "Failed to download $filename after $COUNT attempts"
         fi
-    done < <(wget -qO- "$REPO" | grep -o "$grep_url_pattern")
+    done
 
     if [ $download_success -eq 0 ]; then
         msg "No packages were downloaded successfully"
