@@ -142,7 +142,7 @@ EOF
         fi
     done
 
-    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru" | head -n 1)
+    ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru*" | head -n 1)
     if [ -n "$ru" ]; then
         if pkg_is_installed luci-i18n-podkop-ru; then
             msg "Upgraded ru translation..."
