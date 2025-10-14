@@ -20,7 +20,7 @@ https://podkop.net/
 # Автоматическая установка
 Заходим на роутер через ssh, скачиваем и запускаем установочный скрипт командой:
 ```
-wget -O - https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/test/install.sh > install.sh && \chmod +x install.sh && \./install.sh
+wget -O - https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/test/install.sh > install.sh && chmod +x install.sh && ./install.sh
 ```
 
 # Ручная установка
