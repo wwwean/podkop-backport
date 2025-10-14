@@ -169,7 +169,7 @@ EOF
         fi
     fi
 
-    find "$DOWNLOAD_DIR" -type f -name '*podkop*' -o -name 'sing-box*' -exec rm {} \;
+    find "$DOWNLOAD_DIR" -type f \( -name '*podkop*' -o -name 'sing-box*' \) -exec rm {} \;
 }
 
 check_system() {
