@@ -80,7 +80,6 @@ main() {
     msg
 
     msg "Checking system..."
-    msg
     check_system
 
     msg "Downloading packages..."
@@ -128,7 +127,6 @@ EOF
     fi
 
     msg "Checking Sing-box..."
-    msg
     check_sing_box
 
     msg "Checking Podkop..."
@@ -225,7 +223,7 @@ check_system() {
     fi
 
     if [ "$OPENWRT_VERSION" = "21" ]; then
-        msg "Check and Install kmod-ipt-tproxy"
+        msg "Checking and Installing kmod-ipt-tproxy..."
         pkg_install kmod-ipt-tproxy
         msg
     else
