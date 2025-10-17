@@ -77,11 +77,14 @@ pkg_install() {
 main() {
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
     pkg_list_update || { echo "Packages list update failed"; exit 1; }
+    msg
 
     msg "Checking system..."
+    msg
     check_system
 
     msg "Downloading packages..."
+    msg
     response_check
 
     local grep_url_pattern
@@ -128,6 +131,7 @@ EOF
     check_sing_box
 
     msg "Checking Podkop..."
+    msg
     if [ -f "/etc/init.d/podkop" ]; then
         msg "Podkop is already installed. Upgraded..."
     else
@@ -139,6 +143,7 @@ EOF
         if [ -n "$file" ]; then
             msg "Installing $file"
             pkg_install "$DOWNLOAD_DIR/$file"
+            msg
             sleep 5
         fi
     done
@@ -152,11 +157,11 @@ EOF
         else
             msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
-                RUS='n'
                 read -r -p '' RUS
                 case $RUS in
                 y)
                     pkg_remove luci-i18n-podkop*
+                    msg
                     pkg_install "$DOWNLOAD_DIR/$ru"
                     break
                     ;;
@@ -178,6 +183,7 @@ check_system() {
     # Get router model
     MODEL=$(cat /tmp/sysinfo/model)
     msg "Router model: $MODEL"
+    msg
 
     # Check available space
     AVAILABLE_SPACE=$(df /overlay | awk 'NR==2 {print $4}')
@@ -206,6 +212,7 @@ check_system() {
                     pkg_remove luci-app-https-dns-proxy
                     pkg_remove https-dns-proxy
                     pkg_remove luci-i18n-https-dns-proxy*
+                    msg
                     break
                     ;;
                 *)
@@ -218,12 +225,12 @@ check_system() {
 
     if [ "$OPENWRT_VERSION" = "21" ]; then
         msg "Check and Install kmod-ipt-tproxy"
-        msg
         pkg_install kmod-ipt-tproxy
+        msg
     else
         msg "Check and Install kmod-nft-tproxy"
-        msg
         pkg_install kmod-nft-tproxy
+        msg
     fi
 }
 
@@ -243,6 +250,7 @@ check_sing_box() {
             return
         fi
         msg "Sing-box installed and up to date"
+        msg
     else
         msg "Sing-box is not installed. Installing Sing-box..."
         pkg_install "$DOWNLOAD_DIR/sing-box*"
