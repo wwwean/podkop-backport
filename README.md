@@ -20,7 +20,7 @@ https://podkop.net/
 # Автоматическая установка
 Заходим на роутер через ssh, скачиваем и запускаем установочный скрипт командой:
 ```
-wget -O - https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/test/install.sh > install.sh && chmod +x install.sh && ./install.sh
+wget -O install.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/test/install.sh && chmod +x install.sh && ./install.sh
 ```
 
 # Ручная установка
@@ -30,7 +30,7 @@ wget -O - https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/te
 
 ## 2. Установка Podkop-backport
 ### Предварительно нужно проверить наличие следующих пакетов:
-a. Для версии OpenWRT до 21 включительно: kmod-ipt-tproxy. Для GL.iNet GL-MT6000 Flint 2 есть в репозитории производителя, поэтому ставим через Luci или через ssh\
+a. Для версии OpenWRT до 21 включительно: kmod-ipt-tproxy. Для GL.iNet GL-MT6000 Flint 2 есть в репозитории GL.iNet, поэтому ставим через Luci или через ssh\
 b. Для версии OpenWRT 22 и новее: kmod-nft-tproxy
 
 ## 3. Установка Luci App Podkop
