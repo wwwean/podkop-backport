@@ -151,7 +151,7 @@ EOF
         else
             msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
-                RUS=''
+                RUS='n'
                 read -r -p '' RUS
                 case $RUS in
                 y)
