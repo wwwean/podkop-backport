@@ -227,7 +227,7 @@ check_system() {
         pkg_install kmod-ipt-tproxy
         msg
     else
-        msg "Check and Install kmod-nft-tproxy"
+        msg "Checking and Installing kmod-nft-tproxy"
         pkg_install kmod-nft-tproxy
         msg
     fi
