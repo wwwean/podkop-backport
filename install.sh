@@ -235,28 +235,31 @@ check_system() {
 }
 
 check_sing_box() {
-    if pkg_is_installed "^sing-box"; then
-        sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
-        required_version="1.12.4"
+    sb=$(ls "$DOWNLOAD_DIR" | grep "sing-box" | head -n 1)
+    if [ -n "$sb" ]; then
+        if pkg_is_installed "^sing-box"; then
+            sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
+            required_version="1.12.4"
 
-        if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
-            msg "Sing-box version $sing_box_version is older than required $required_version"
-            msg "Updating Sing-box..."
-            service podkop stop > /dev/null 2>&1
-            pkg_install "$DOWNLOAD_DIR/sing-box*"
-            sleep 5
-            msg "Sing-box has been updated"
+            if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
+                msg "Sing-box version $sing_box_version is older than required $required_version"
+                msg "Updating Sing-box..."
+                service podkop stop > /dev/null 2>&1
+                pkg_install "$DOWNLOAD_DIR/$sb"
+                sleep 5
+                msg "Sing-box has been updated"
+                msg
+                return
+            fi
+            msg "Sing-box installed and up to date"
             msg
-            return
+        else
+            msg "Sing-box is not installed. Installing Sing-box..."
+            pkg_install "$DOWNLOAD_DIR/$sb"
+            sleep 5
+            msg "Sing-box has been installed"
+            msg
         fi
-        msg "Sing-box installed and up to date"
-        msg
-    else
-        msg "Sing-box is not installed. Installing Sing-box..."
-        pkg_install "$DOWNLOAD_DIR/sing-box*"
-        sleep 5
-        msg "Sing-box has been installed"
-        msg
     fi
 }
 
