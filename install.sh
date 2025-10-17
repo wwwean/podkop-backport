@@ -128,10 +128,10 @@ EOF
     fi
 
     msg "Checking Sing-box..."
+    msg
     check_sing_box
 
     msg "Checking Podkop..."
-    msg
     if [ -f "/etc/init.d/podkop" ]; then
         msg "Podkop is already installed. Upgraded..."
     else
@@ -143,10 +143,11 @@ EOF
         if [ -n "$file" ]; then
             msg "Installing $file"
             pkg_install "$DOWNLOAD_DIR/$file"
-            msg
             sleep 5
         fi
     done
+    msg "Podkop has been installed/upgraded"
+    msg
 
     ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru" | head -n 1)
     if [ -n "$ru" ]; then
