@@ -91,37 +91,37 @@ main() {
         grep_url_pattern='https://[^"[:space:]]*\.ipk'
     fi
 
-#     download_success=0
-#     while read -r url; do
-#         filename=$(basename "$url")
-#         filepath="$DOWNLOAD_DIR/$filename"
+    download_success=0
+    while read -r url; do
+        filename=$(basename "$url")
+        filepath="$DOWNLOAD_DIR/$filename"
 
-#         attempt=0
-#         while [ $attempt -lt $COUNT ]; do
-#             msg "Download $filename (count $((attempt+1)))..."
-#             if wget -q -O "$filepath" "$url"; then
-#                 if [ -s "$filepath" ]; then
-#                     msg "$filename successfully downloaded"
-#                     download_success=1
-#                     break
-#                 fi
-#             fi
-#             msg "Download error $filename. Retry..."
-#             rm -f "$filepath"
-#             attempt=$((attempt+1))
-#         done
+        attempt=0
+        while [ $attempt -lt $COUNT ]; do
+            msg "Download $filename (count $((attempt+1)))..."
+            if wget -q -O "$filepath" "$url"; then
+                if [ -s "$filepath" ]; then
+                    msg "$filename successfully downloaded"
+                    download_success=1
+                    break
+                fi
+            fi
+            msg "Download error $filename. Retry..."
+            rm -f "$filepath"
+            attempt=$((attempt+1))
+        done
 
-#         if [ $attempt -eq $COUNT ]; then
-#             msg "Failed to download $filename after $COUNT attempts"
-#         fi
-#     done <<EOF
-#     $(wget -qO- "$REPO" | grep -o "$grep_url_pattern")
-# EOF
+        if [ $attempt -eq $COUNT ]; then
+            msg "Failed to download $filename after $COUNT attempts"
+        fi
+    done <<EOF
+    $(wget -qO- "$REPO" | grep -o "$grep_url_pattern")
+EOF
 
-#     if [ $download_success -eq 0 ]; then
-#         msg "No packages were downloaded successfully"
-#         exit 1
-#     fi
+    if [ $download_success -eq 0 ]; then
+        msg "No packages were downloaded successfully"
+        exit 1
+    fi
 
     msg "Checking Sing-box..."
     check_sing_box
@@ -133,21 +133,21 @@ main() {
         msg "Installing podkop..."
     fi
 
-    # for pkg in podkop luci-app-podkop; do
-    #     file=$(ls "$DOWNLOAD_DIR" | grep "^$pkg" | head -n 1)
-    #     if [ -n "$file" ]; then
-    #         msg "Installing $file"
-    #         pkg_install "$DOWNLOAD_DIR/$file"
-    #         sleep 5
-    #     fi
-    # done
+    for pkg in podkop luci-app-podkop; do
+        file=$(ls "$DOWNLOAD_DIR" | grep "^$pkg" | head -n 1)
+        if [ -n "$file" ]; then
+            msg "Installing $file"
+            pkg_install "$DOWNLOAD_DIR/$file"
+            sleep 5
+        fi
+    done
 
     ru=$(ls "$DOWNLOAD_DIR" | grep "luci-i18n-podkop_backport-ru" | head -n 1)
     if [ -n "$ru" ]; then
         if pkg_is_installed luci-i18n-podkop-ru; then
             msg "Upgraded ru translation..."
-            # pkg_remove luci-i18n-podkop*
-            # pkg_install "$DOWNLOAD_DIR/$ru"
+            pkg_remove luci-i18n-podkop*
+            pkg_install "$DOWNLOAD_DIR/$ru"
         else
             msg "Русский язык интерфейса ставим? y/n (Need a Russian translation?)"
             while true; do
@@ -155,8 +155,8 @@ main() {
                 read -r -p '' RUS
                 case $RUS in
                 y)
-                    # pkg_remove luci-i18n-podkop*
-                    # pkg_install "$DOWNLOAD_DIR/$ru"
+                    pkg_remove luci-i18n-podkop*
+                    pkg_install "$DOWNLOAD_DIR/$ru"
                     break
                     ;;
                 n)
@@ -202,9 +202,9 @@ check_system() {
                 case $DNSPROXY in
 
                 yes|y|Y)
-                    # pkg_remove luci-app-https-dns-proxy
-                    # pkg_remove https-dns-proxy
-                    # pkg_remove luci-i18n-https-dns-proxy*
+                    pkg_remove luci-app-https-dns-proxy
+                    pkg_remove https-dns-proxy
+                    pkg_remove luci-i18n-https-dns-proxy*
                     break
                     ;;
                 *)
@@ -217,10 +217,10 @@ check_system() {
 
     if [ "$OPENWRT_VERSION" = "21" ]; then
         msg "Check and Install kmod-ipt-tproxy"
-        # pkg_install kmod-ipt-tproxy
+        pkg_install kmod-ipt-tproxy
     else
         msg "Check and Install kmod-nft-tproxy"
-        # pkg_install kmod-nft-tproxy
+        pkg_install kmod-nft-tproxy
     fi
 }
 
@@ -232,8 +232,8 @@ check_sing_box() {
         if [ "$(echo -e "$sing_box_version\n$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
             msg "Sing-box version $sing_box_version is older than required $required_version"
             msg "Updating Sing-box..."
-            # service podkop stop > /dev/null 2>&1
-            # pkg_install "$DOWNLOAD_DIR/sing-box*"
+            service podkop stop > /dev/null 2>&1
+            pkg_install "$DOWNLOAD_DIR/sing-box*"
             sleep 5
             msg "Sing-box has been updated"
             return
@@ -241,7 +241,7 @@ check_sing_box() {
         msg "Sing-box installed and up to date"
     else
         msg "Sing-box is not installed. Installing Sing-box..."
-        # pkg_install "$DOWNLOAD_DIR/sing-box*"
+        pkg_install "$DOWNLOAD_DIR/sing-box*"
         sleep 5
         msg "Sing-box has been installed"
     fi
