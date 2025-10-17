@@ -102,6 +102,7 @@ main() {
             if wget -q -O "$filepath" "$url"; then
                 if [ -s "$filepath" ]; then
                     msg "$filename successfully downloaded"
+                    msg
                     download_success=1
                     break
                 fi
@@ -217,9 +218,11 @@ check_system() {
 
     if [ "$OPENWRT_VERSION" = "21" ]; then
         msg "Check and Install kmod-ipt-tproxy"
+        msg
         pkg_install kmod-ipt-tproxy
     else
         msg "Check and Install kmod-nft-tproxy"
+        msg
         pkg_install kmod-nft-tproxy
     fi
 }
@@ -236,6 +239,7 @@ check_sing_box() {
             pkg_install "$DOWNLOAD_DIR/sing-box*"
             sleep 5
             msg "Sing-box has been updated"
+            msg
             return
         fi
         msg "Sing-box installed and up to date"
@@ -244,6 +248,7 @@ check_sing_box() {
         pkg_install "$DOWNLOAD_DIR/sing-box*"
         sleep 5
         msg "Sing-box has been installed"
+        msg
     fi
 }
 
