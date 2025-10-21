@@ -68,7 +68,7 @@ pkg_install() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
         # Can't install without flag based on info from documentation
         # If you're installing a non-standard (self-built) package, use the --allow-untrusted option:
-        if apk add --allow-untrusted "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
+        apk add --allow-untrusted "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
     else
         opkg install "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
     fi
