@@ -1,6 +1,6 @@
-# Podkop с поддержкой устаревших версий OpenWrt (iptables)
+# Podkop с поддержкой устаревших версий OpenWrt
 
-Проверено на OpenWrt 21 (GL.iNet GL-MT6000 Flint 2), OpenWrt 24 (BPI R4). Возможна ручная или автоматическая установка.
+В оригинальный Podkop добавлена поддержка iptables - можно поставить на версию OpenWrt, начиная с, как минимум, 21. Проверено на OpenWrt 21 (GL.iNet GL-MT6000 Flint 2), OpenWrt 24 (BPI R4). Возможна ручная или автоматическая установка.
 
 # Вещи, которые вам нужно знать перед установкой
 
@@ -20,19 +20,19 @@ https://podkop.net/
 # Автоматическая установка
 Заходим на роутер через ssh, скачиваем и запускаем установочный скрипт командой:
 ```
-wget -O install.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/test/install.sh && chmod +x install.sh && ./install.sh
+wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/main/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
 ```
 
 # Ручная установка
-## 1. Установка Sing-box (требуется версия не ниже 1.12.4)
+## 1. Установка Sing-box-backport (требуется версия не ниже 1.12.4)
 На старых версиях OpenWrt этого пакета нет в репозиториях - качаем пакет из релиза и устанавливаем.\
-Потребуются следующие пакеты: kmod-inet-diag, kmod-tun. Можно предварительно поставить через Luci или ssh, либо собрать прошивку с этими пакетами. На GL.iNet GL-MT6000 Flint 2 зависимости подтянутся из репозитория GL.iNet.
+Потребуется пакет kmod-inet-diag. На GL.iNet GL-MT6000 Flint он подтянется из репозитория GL.iNet. Для чистой OpenWrt 21 есть патч, добавляющий поддержку этого пакета.
 
 ## 2. Установка Podkop-backport
-### Предварительно нужно проверить наличие следующих пакетов:
-a. Для версии OpenWrt до 21 включительно: kmod-ipt-tproxy. Для GL.iNet GL-MT6000 Flint 2 есть в репозитории GL.iNet, ставим через Luci или через ssh\
-b. Для версии OpenWrt 22 и свежее: kmod-nft-tproxy
+### Перед установкой нужно проверить наличие следующих пакетов:
+a. Для версии OpenWrt до 21 включительно: kmod-ipt-tproxy. Есть в репозиториии, ставим через Luci или ssh\
+b. Для версии OpenWrt 22 и новее: kmod-nft-tproxy, установка аналогичная
 
 ## 3. Установка Luci App Podkop
-Качаем и устанавливаем пакет из релиза через Luci или через ssh. Руссифицируем при желании.
+Качаем и устанавливаем пакет из релиза через Luci или ssh. Русифицируем по желанию.
 

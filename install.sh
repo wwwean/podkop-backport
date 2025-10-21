@@ -68,15 +68,15 @@ pkg_install() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
         # Can't install without flag based on info from documentation
         # If you're installing a non-standard (self-built) package, use the --allow-untrusted option:
-        apk add --allow-untrusted "$pkg_file"
+        if apk add --allow-untrusted "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
     else
-        opkg install "$pkg_file"
+        opkg install "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
     fi
 }
 
 main() {
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-    pkg_list_update || { echo "Packages list update failed"; exit 1; }
+    pkg_list_update || { echo -e "\nPackages list update failed"; exit 1; }
     msg
 
     msg "Checking system..."
