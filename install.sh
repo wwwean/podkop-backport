@@ -200,6 +200,12 @@ check_system() {
         exit 1
     fi
 
+    # Check kmod-inet-diag
+    if ! opkg find kmod-inet-diag | grep "kmod-inet-diag"; then
+        echo -e "\nThe kmod-inet-diag package cannot be installed. It must be installed manually or integrated into the firmware"
+        exit 1
+    fi
+
     if pkg_is_installed https-dns-proxy; then
         msg "Сonflicting package detected: https-dns-proxy. Remove?"
 
