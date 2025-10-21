@@ -5,7 +5,7 @@ DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 
 # Check OpenWrt version
-OPENWRT_VERSION=$(cat /etc/openwrt_release | grep DISTRIB_RELEASE | cut -d"'" -f2 | cut -d'.' -f1)
+OPENWRT_VER=$(cat /etc/openwrt_release | grep DISTRIB_RELEASE | cut -d"'" -f2 | cut -d'.' -f1)
 
 # Cached flag to switch between ipk or apk package managers
 PKG_IS_APK=0
@@ -18,12 +18,16 @@ msg() {
     printf "\033[32;1m%s\033[0m\n" "$1"
 }
 
+msg_err() {
+    printf "\033[31;1m%s\033[0m\n" "$1"
+}
+
 response_check () {
     if command -v curl &> /dev/null; then
         check_response=$(curl -s "$REPO")
 
         if echo "$check_response" | grep -q 'API rate limit '; then
-            msg "You've reached rate limit from GitHub. Repeat in five minutes."
+            msg_err "You've reached rate limit from GitHub. Repeat in five minutes."
             exit 1
         fi
     fi
@@ -68,15 +72,15 @@ pkg_install() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
         # Can't install without flag based on info from documentation
         # If you're installing a non-standard (self-built) package, use the --allow-untrusted option:
-        apk add --allow-untrusted "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
+        apk add --allow-untrusted "$pkg_file" || { msg_err "\nPackage install failed"; exit 1; }
     else
-        opkg install "$pkg_file" || { echo -e "\nPackage install failed"; exit 1; }
+        opkg install "$pkg_file" || { msg_err "\nPackage install failed"; exit 1; }
     fi
 }
 
 main() {
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-    pkg_list_update || { echo -e "\nPackages list update failed"; exit 1; }
+    pkg_list_update || { msg_err "\nPackages list update failed"; exit 1; }
     msg
 
     msg "Checking system..."
@@ -109,20 +113,20 @@ main() {
                     break
                 fi
             fi
-            msg "Download error $filename. Retry..."
+            msg_err "Download error $filename. Retry..."
             rm -f "$filepath"
             attempt=$((attempt+1))
         done
 
         if [ $attempt -eq $COUNT ]; then
-            msg "Failed to download $filename after $COUNT attempts"
+            msg_err "Failed to download $filename after $COUNT attempts"
         fi
     done <<EOF
     $(wget -qO- "$REPO" | grep -o "$grep_url_pattern")
 EOF
 
     if [ $download_success -eq 0 ]; then
-        msg "No packages were downloaded successfully"
+        msg_err "No packages were downloaded successfully"
         exit 1
     fi
 
@@ -189,25 +193,25 @@ check_system() {
     REQUIRED_SPACE=15360 # 15MB in KB
 
     if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
-        msg "Error: Insufficient space in flash"
-        msg "Available: $((AVAILABLE_SPACE/1024))MB"
-        msg "Required: $((REQUIRED_SPACE/1024))MB"
+        msg_err "Error: Insufficient space in flash"
+        msg_err "Available: $((AVAILABLE_SPACE/1024))MB"
+        msg_err "Required: $((REQUIRED_SPACE/1024))MB"
         exit 1
     fi
 
     if ! nslookup google.com >/dev/null 2>&1; then
-        msg "DNS not working"
+        msg_err "DNS not working"
         exit 1
     fi
 
     # Check kmod-inet-diag
     if ! opkg find kmod-inet-diag | grep "kmod-inet-diag"; then
-        echo -e "\nThe kmod-inet-diag package cannot be installed. It must be installed manually or integrated into the firmware"
+        msg_err "The kmod-inet-diag package cannot be installed. Must be installed manually or pre-integrated into the firmware"
         exit 1
     fi
 
     if pkg_is_installed https-dns-proxy; then
-        msg "Сonflicting package detected: https-dns-proxy. Remove?"
+        msg_err "Сonflicting package detected: https-dns-proxy. Remove?"
 
         while true; do
                 read -r -p '' DNSPROXY
@@ -228,12 +232,14 @@ check_system() {
     done
     fi
 
-    if [ "$OPENWRT_VERSION" = "21" ]; then
-        msg "Checking and Installing kmod-ipt-tproxy..."
+    # Check/Install Tproxy
+    def_openwrt_ver=21
+    if [[ "$(echo -e "$OPENWRT_VER\n$def_openwrt_ver" | sort -V | head -n 1)" -ne "$def_openwrt_ver" || "$OPENWRT_VER" -eq "$def_openwrt_ver" ]]; then
+        msg "Check/Install kmod-ipt-tproxy..."
         pkg_install kmod-ipt-tproxy
         msg
     else
-        msg "Checking and Installing kmod-nft-tproxy"
+        msg "Check/Install kmod-nft-tproxy"
         pkg_install kmod-nft-tproxy
         msg
     fi
