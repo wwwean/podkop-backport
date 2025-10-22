@@ -205,8 +205,8 @@ check_system() {
     fi
 
     # Check kmod-inet-diag
-    if ! opkg find kmod-inet-diag | grep "kmod-inet-diag"; then
-        msg_err "The kmod-inet-diag package cannot be installed. Must be installed manually or pre-integrated into the firmware"
+    if ! opkg find kmod-inet-diag | grep -q "kmod-inet-diag"; then
+        msg_err "The kmod-inet-diag package cannot be installed. Try installing manually or pre-integrating into the firmware and try again."
         exit 1
     fi
 
