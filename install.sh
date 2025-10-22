@@ -87,7 +87,6 @@ main() {
     check_system
 
     msg "Downloading packages..."
-    msg
     response_check
 
     local grep_url_pattern
@@ -108,7 +107,6 @@ main() {
             if wget -q -O "$filepath" "$url"; then
                 if [ -s "$filepath" ]; then
                     msg "$filename successfully downloaded"
-                    msg
                     download_success=1
                     break
                 fi
@@ -164,7 +162,6 @@ EOF
                 case $RUS in
                 y)
                     pkg_remove luci-i18n-podkop*
-                    msg
                     pkg_install "$DOWNLOAD_DIR/$ru"
                     break
                     ;;
