@@ -80,7 +80,7 @@ pkg_install() {
 
 main() {
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-    pkg_list_update || { msg_err "Packages list update failed"; exit 1; }
+    pkg_list_update || { msg_err "Package list update failed"; exit 1; }
     msg
 
     msg "Checking system..."
