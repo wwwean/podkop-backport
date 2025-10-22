@@ -86,6 +86,9 @@ main() {
     msg "Checking system..."
     check_system
 
+    msg "Checking Sing-box..."
+    check_sing_box
+
     msg "Downloading packages..."
     response_check
 
@@ -127,9 +130,6 @@ EOF
         msg_err "No packages were downloaded successfully"
         exit 1
     fi
-
-    msg "Checking Sing-box..."
-    check_sing_box
 
     msg "Checking Podkop..."
     if [ -f "/etc/init.d/podkop" ]; then
@@ -232,8 +232,8 @@ check_system() {
     # Check/Install Tproxy
     def_openwrt_ver=21
     if [[ "$(echo -e "$OPENWRT_VER\n$def_openwrt_ver" | sort -V | head -n 1)" -ne "$def_openwrt_ver" || "$OPENWRT_VER" -eq "$def_openwrt_ver" ]]; then
-        msg "Check/Install kmod-ipt-tproxy..."
-        pkg_install kmod-ipt-tproxy
+        msg "Check/Install iptables-mod-tproxy..."
+        pkg_install iptables-mod-tproxy
         msg
     else
         msg "Check/Install kmod-nft-tproxy"

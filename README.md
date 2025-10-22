@@ -30,7 +30,7 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 
 ## 2. Установка Podkop-backport
 ### Перед установкой нужно проверить наличие следующих пакетов:
-a. Для версии OpenWrt до 21 включительно: kmod-ipt-tproxy. Есть в репозиториии, ставим через Luci или ssh\
+a. Для версии OpenWrt до 21 включительно: iptables-mod-tproxy. Есть в репозиториии, ставим через Luci или ssh\
 b. Для версии OpenWrt 22 и новее: kmod-nft-tproxy, установка аналогичная
 
 ## 3. Установка Luci App Podkop
