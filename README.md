@@ -26,7 +26,7 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 # Ручная установка
 ## 1. Установка Sing-box-backport (требуется версия не ниже 1.12.4)
 На старых версиях OpenWrt этого пакета нет в репозиториях - качаем пакет из релиза и устанавливаем.\
-Потребуется пакет kmod-inet-diag. На GL.iNet GL-MT6000 Flint он подтянется из репозитория GL.iNet. Для чистой OpenWrt 21 есть патч, добавляющий поддержку этого пакета.
+Могут возникнуть сложности с пакетом kmod-inet-diag. На GL.iNet GL-MT6000 Flint он подтянется из репозитория GL.iNet. Для чистой OpenWrt 21 есть патч (https://github.com/openwrt/openwrt/commit/efc8aff62cb244583a14c30f8d099103b75ced1d.patch), добавляющий поддержку этого пакета.
 
 ## 2. Установка Podkop-backport
 ### Перед установкой нужно проверить наличие следующих пакетов:

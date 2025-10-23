@@ -128,6 +128,7 @@ EOF
         exit 1
     fi
 
+    msg
     msg "Checking Sing-box..."
     check_sing_box
 
