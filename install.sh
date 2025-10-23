@@ -86,9 +86,6 @@ main() {
     msg "Checking system..."
     check_system
 
-    msg "Checking Sing-box..."
-    check_sing_box
-
     msg "Downloading packages..."
     response_check
 
@@ -130,6 +127,9 @@ EOF
         msg_err "No packages were downloaded successfully"
         exit 1
     fi
+
+    msg "Checking Sing-box..."
+    check_sing_box
 
     msg "Checking Podkop..."
     if [ -f "/etc/init.d/podkop" ]; then
