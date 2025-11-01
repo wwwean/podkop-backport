@@ -7,6 +7,15 @@
 'require view.podkop.constants as constants';
 'require view.podkop.utils as utils';
 
+return baseclass.extend({
+      __init__: function() {
+          document.querySelector('head').appendChild(E('link', {
+              rel: 'stylesheet',
+              href: L.resource('css/podkop/style.css')
+          }));
+      }
+});
+
 // Cache system for network requests
 const fetchCache = {};
 
@@ -526,7 +535,7 @@ let createStatusSection = async function () {
                     ButtonFactory.createModalButton({
                         label: _('Check Firewall Rules'),
                         command: 'check_nft',
-                        title: _('NFT Rules')
+                        title: _('Firewall Rules')
                     }),
                     ButtonFactory.createModalButton({
                         label: _('Check DNSMasq'),
