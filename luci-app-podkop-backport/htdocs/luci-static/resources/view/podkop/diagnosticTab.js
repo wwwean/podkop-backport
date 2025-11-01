@@ -7,15 +7,6 @@
 'require view.podkop.constants as constants';
 'require view.podkop.utils as utils';
 
-return baseclass.extend({
-      __init__: function() {
-          document.querySelector('head').appendChild(E('link', {
-              rel: 'stylesheet',
-              href: L.resource('css/podkop/style.css')
-          }));
-      }
-});
-
 // Cache system for network requests
 const fetchCache = {};
 
@@ -288,6 +279,11 @@ function createModalContent(title, content) {
 }
 
 function showConfigModal(command, title) {
+    document.querySelector('head').appendChild(E('link', {
+        rel: 'stylesheet',
+        href: L.resource('css/podkop/style.css')
+    }));
+
     // Create and show modal immediately with loading state
     const modalContent = E('div', { 'class': 'panel-body' }, [
         E('div', {
