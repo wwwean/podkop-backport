@@ -9,6 +9,12 @@ check_required_file() {
     fi
 }
 
+# Firewall
+FIREWALL=nftables
+if command iptables -V > /dev/null 2>&1; then
+    FIREWALL=iptables
+fi
+
 PODKOP_LIB="/usr/lib/podkop"
 check_required_file /lib/functions.sh
 check_required_file /lib/config/uci.sh
@@ -157,9 +163,30 @@ stop_main() {
 
     rm -f "$TMP_RULESET_FOLDER"/*
 
-    log "Flush nft"
-    if nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
-        nft delete table inet "$NFT_TABLE_NAME"
+    log "Flush nft/iptables"
+    if [ "$FIREWALL" == "nftables" ]; then
+        if nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
+            nft delete table inet "$NFT_TABLE_NAME"
+        fi
+    else
+        iptables -t mangle -F "$NFT_TABLE_NAME"_"$NFT_INTERFACE_SET_NAME" > /dev/null 2>&1
+        iptables -t mangle -X "$NFT_TABLE_NAME"_"$NFT_INTERFACE_SET_NAME" > /dev/null 2>&1
+
+        iptables -t mangle -D PREROUTING -j "$NFT_TABLE_NAME"_MANGLE > /dev/null 2>&1
+        iptables -t mangle -F "$NFT_TABLE_NAME"_MANGLE > /dev/null 2>&1
+        iptables -t mangle -X "$NFT_TABLE_NAME"_MANGLE > /dev/null 2>&1
+
+        iptables -t mangle -D OUTPUT -j "$NFT_TABLE_NAME"_MANGLE_OUTPUT > /dev/null 2>&1
+        iptables -t mangle -F "$NFT_TABLE_NAME"_MANGLE_OUTPUT > /dev/null 2>&1
+        iptables -t mangle -X "$NFT_TABLE_NAME"_MANGLE_OUTPUT > /dev/null 2>&1
+
+        iptables -t mangle -D PREROUTING -j "$NFT_TABLE_NAME"_PROXY > /dev/null 2>&1
+        iptables -t mangle -F "$NFT_TABLE_NAME"_PROXY > /dev/null 2>&1
+        iptables -t mangle -X "$NFT_TABLE_NAME"_PROXY > /dev/null 2>&1
+        
+        ipset destroy localv4 > /dev/null 2>&1
+        ipset destroy $NFT_COMMON_SET_NAME > /dev/null 2>&1
+        ipset destroy $NFT_DISCORD_SET_NAME > /dev/null 2>&1
     fi
 
     log "Flush ip rule"
@@ -269,70 +296,134 @@ route_table_rule_mark() {
 }
 
 nft_init_interfaces_set() {
-    nft_create_ifname_set "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME"
+    nft_create_ifname_set "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "$FIREWALL"
 
     local source_network_interfaces
     config_get source_network_interfaces "settings" "source_network_interfaces" "br-lan"
 
     for interface in $source_network_interfaces; do
-        nft add element inet "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "{ $interface }"
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft add element inet "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "{ $interface }"
+        else
+            iptables -t mangle -I "$NFT_TABLE_NAME"_"$NFT_INTERFACE_SET_NAME" -i "$interface" -j RETURN
+        fi
     done
 }
 
 create_nft_rules() {
-    log "Create nft table"
-    nft_create_table "$NFT_TABLE_NAME"
+    if [ "$FIREWALL" == "nftables" ]; then
+        log "Create nft table"
+        nft_create_table "$NFT_TABLE_NAME"
 
-    log "Create localv4 set"
-    nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME"
-    nft add element inet "$NFT_TABLE_NAME" localv4 '{
-        0.0.0.0/8,
-        10.0.0.0/8,
-        127.0.0.0/8,
-        169.254.0.0/16,
-        172.16.0.0/12,
-        192.0.0.0/24,
-        192.0.2.0/24,
-        192.88.99.0/24,
-        192.168.0.0/16,
-        198.51.100.0/24,
-        203.0.113.0/24,
-        224.0.0.0/4,
-        240.0.0.0-255.255.255.255
-    }'
+        log "Create localv4 set"
+        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME"
+        nft add element inet "$NFT_TABLE_NAME" localv4 '{
+            0.0.0.0/8,
+            10.0.0.0/8,
+            127.0.0.0/8,
+            169.254.0.0/16,
+            172.16.0.0/12,
+            192.0.0.0/24,
+            192.0.2.0/24,
+            192.88.99.0/24,
+            192.168.0.0/16,
+            198.51.100.0/24,
+            203.0.113.0/24,
+            224.0.0.0/4,
+            240.0.0.0-255.255.255.255
+        }'
 
-    log "Create common set"
-    nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+        log "Create common set"
+        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
 
-    log "Create interface set"
-    nft_init_interfaces_set
+        log "Create interface set"
+        nft_init_interfaces_set
 
-    log "Create nft rules"
-    nft add chain inet "$NFT_TABLE_NAME" mangle '{ type filter hook prerouting priority -150; policy accept; }'
-    nft add chain inet "$NFT_TABLE_NAME" mangle_output '{ type route hook output priority -150; policy accept; }'
-    nft add chain inet "$NFT_TABLE_NAME" proxy '{ type filter hook prerouting priority -100; policy accept; }'
+        log "Create nft rules"
+        nft add chain inet "$NFT_TABLE_NAME" mangle '{ type filter hook prerouting priority -150; policy accept; }'
+        nft add chain inet "$NFT_TABLE_NAME" mangle_output '{ type route hook output priority -150; policy accept; }'
+        nft add chain inet "$NFT_TABLE_NAME" proxy '{ type filter hook prerouting priority -100; policy accept; }'
 
-    nft add rule inet "$NFT_TABLE_NAME" mangle ct status dnat return
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle ct status dnat return
+        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
 
-    nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto tcp tproxy ip to 127.0.0.1:1602 counter
-    nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto udp tproxy ip to 127.0.0.1:1602 counter
+        nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto tcp tproxy ip to 127.0.0.1:1602 counter
+        nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto udp tproxy ip to 127.0.0.1:1602 counter
 
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_LOCALV4_SET_NAME" return
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_LOCALV4_SET_NAME" return
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
+        nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+    else
+        log "Create localv4 set"
+        localv4list="0.0.0.0/8
+            10.0.0.0/8
+            127.0.0.0/8
+            169.254.0.0/16
+            172.16.0.0/12
+            192.0.0.0/24
+            192.0.2.0/24
+            192.88.99.0/24
+            192.168.0.0/16
+            198.51.100.0/24
+            203.0.113.0/24
+            224.0.0.0/4
+            240.0.0.0/4
+            255.255.255.255"
+        
+        ipset create localv4 hash:net > /dev/null 2>&1
+        for ip in $localv4list; do
+            ipset add localv4 "$ip" > /dev/null 2>&1
+        done
+
+        log "Create common set"
+        ipset create "$NFT_COMMON_SET_NAME" hash:net > /dev/null 2>&1
+
+        log "Create interface set"
+        nft_init_interfaces_set
+
+        log "Create iptables rules"
+        iptables -t mangle -N "$NFT_TABLE_NAME"_MANGLE 2>/dev/null
+        iptables -t mangle -A PREROUTING -j "$NFT_TABLE_NAME"_MANGLE
+
+        iptables -t mangle -N "$NFT_TABLE_NAME"_MANGLE_OUTPUT 2>/dev/null
+        iptables -t mangle -A OUTPUT -j "$NFT_TABLE_NAME"_MANGLE_OUTPUT
+
+        iptables -t mangle -N "$NFT_TABLE_NAME"_PROXY 2>/dev/null
+        iptables -t mangle -A PREROUTING -j "$NFT_TABLE_NAME"_PROXY
+
+        iptables -t mangle -A "$NFT_TABLE_NAME"_PROXY -m mark --mark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK -p tcp -j TPROXY --on-port $TPROXY_PORT --on-ip 127.0.0.1 --tproxy-mark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_PROXY -m mark --mark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK -p udp -j TPROXY --on-port $TPROXY_PORT --on-ip 127.0.0.1 --tproxy-mark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK
+
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -m conntrack --ctstate DNAT -j RETURN
+        iptables -t mangle -A PREROUTING -j "$NFT_TABLE_NAME"_"$NFT_INTERFACE_SET_NAME"
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -m set --match-set "$NFT_COMMON_SET_NAME" dst -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -m set --match-set "$NFT_COMMON_SET_NAME" dst -p udp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -d "$SB_FAKEIP_INET4_RANGE" -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -d "$SB_FAKEIP_INET4_RANGE" -p udp -j MARK --set-mark $NFT_FAKEIP_MARK   
+
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -m set --match-set "$NFT_LOCALV4_SET_NAME" dst -j RETURN
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -m mark --mark $NFT_OUTBOUND_MARK/$NFT_OUTBOUND_MARK -j RETURN
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -m set --match-set "$NFT_COMMON_SET_NAME" dst -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -m set --match-set "$NFT_COMMON_SET_NAME" dst -p udp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -d "$SB_FAKEIP_INET4_RANGE" -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK
+        iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE_OUTPUT -d "$SB_FAKEIP_INET4_RANGE" -p udp -j MARK --set-mark $NFT_FAKEIP_MARK 
+    fi
 
     local exclude_ntp
     config_get_bool exclude_ntp "settings" "exclude_ntp" "0"
     if [ "$exclude_ntp" -eq 1 ]; then
         log "NTP traffic exclude for proxy"
-        nft insert rule inet "$NFT_TABLE_NAME" mangle udp dport 123 return
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft insert rule inet "$NFT_TABLE_NAME" mangle udp dport 123 return
+        else
+            iptables -t mangle -I "$NFT_TABLE_NAME"_MANGLE -p udp --dport 123 -j RETURN
+        fi
     fi
 }
 
@@ -1071,7 +1162,7 @@ configure_user_subnet_list() {
     items="$(parse_domain_or_subnet_string_to_commas_string "$items" "subnets")"
     json_array="$(comma_string_to_json_array "$items")"
     patch_source_ruleset_rules "$ruleset_filepath" "ip_cidr" "$json_array"
-    nft_add_set_elements "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$items"
+    nft_add_set_elements "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$items" "$FIREWALL"
 }
 
 configure_local_domain_lists() {
@@ -1114,7 +1205,7 @@ import_local_subnets_list_handler() {
     fi
 
     import_plain_subnet_list_to_local_source_ruleset_chunked "$local_subnet_list_filepath" "$ruleset_filepath"
-    nft_add_set_elements_from_file_chunked "$local_subnet_list_filepath" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+    nft_add_set_elements_from_file_chunked "$local_subnet_list_filepath" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
 }
 
 configure_remote_domain_or_subnet_list_handler() {
@@ -1315,9 +1406,13 @@ import_community_service_subnet_list_handler() {
         ;;
     "discord")
         URL=$SUBNETS_DISCORD
-        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME"
-        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr \
-            "@$NFT_DISCORD_SET_NAME" udp dport '{ 19000-20000, 50000-65535 }' meta mark set "$NFT_FAKEIP_MARK" counter
+        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME" "$FIREWALL"
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr \
+                "@$NFT_DISCORD_SET_NAME" udp dport '{ 19000-20000, 50000-65535 }' meta mark set "$NFT_FAKEIP_MARK" counter
+        else
+            iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -m set --match-set "$NFT_COMMON_SET_NAME" dst -p udp -m multiport --dports 19000:20000,50000:65535 -j MARK --set-mark $NFT_FAKEIP_MARK
+        fi
         ;;
     "roblox")
         URL=$SUBNETS_ROBLOX
@@ -1337,9 +1432,9 @@ import_community_service_subnet_list_handler() {
     fi
 
     if [ "$service" = "discord" ]; then
-        nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME"
+        nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME" "$FIREWALL"
     else
-        nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+        nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
     fi
 
     rm -f "$tmpfile"
@@ -1448,7 +1543,7 @@ import_subnets_from_remote_json_file() {
     fi
 
     extract_ip_cidr_from_json_ruleset_to_file "$json_tmpfile" "$subnets_tmpfile"
-    nft_add_set_elements_from_file_chunked "$subnets_tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+    nft_add_set_elements_from_file_chunked "$subnets_tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
     rm -f "$json_tmpfile" "$subnets_tmpfile"
 }
 
@@ -1474,7 +1569,7 @@ import_subnets_from_remote_srs_file() {
     fi
 
     extract_ip_cidr_from_json_ruleset_to_file "$json_tmpfile" "$subnets_tmpfile"
-    nft_add_set_elements_from_file_chunked "$subnets_tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+    nft_add_set_elements_from_file_chunked "$subnets_tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
     rm -f "$binary_tmpfile" "$json_tmpfile" "$subnets_tmpfile"
 }
 
@@ -1498,7 +1593,7 @@ import_subnets_from_remote_plain_file() {
     ruleset_tag=$(get_ruleset_tag "$section" "remote" "subnets")
     ruleset_filepath="$TMP_RULESET_FOLDER/$ruleset_tag.json"
     import_plain_subnet_list_to_local_source_ruleset_chunked "$tmpfile" "$ruleset_filepath"
-    nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+    nft_add_set_elements_from_file_chunked "$tmpfile" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
 
     rm -f "$tmpfile"
 }
@@ -1612,12 +1707,20 @@ get_service_listen_address() {
 nft_list_all_traffic_from_ip() {
     local ip="$1"
 
-    if ! nft list chain inet "$NFT_TABLE_NAME" mangle | grep -q "ip saddr $ip"; then
-        nft insert rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip saddr "$ip" \
-            meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-        nft insert rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip saddr "$ip" \
-            meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-        nft insert rule inet "$NFT_TABLE_NAME" mangle ip saddr "$ip" ip daddr @localv4 return
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! nft list chain inet "$NFT_TABLE_NAME" mangle | grep -q "ip saddr $ip"; then
+            nft insert rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip saddr "$ip" \
+                meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
+            nft insert rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip saddr "$ip" \
+                meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+            nft insert rule inet "$NFT_TABLE_NAME" mangle ip saddr "$ip" ip daddr @localv4 return
+        fi
+    else
+        if ! iptables -t mangle -C "$NFT_TABLE_NAME"_MANGLE -s $ip -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK > /dev/null 2>&1; then
+            iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -s $ip -p tcp -j MARK --set-mark $NFT_FAKEIP_MARK
+            iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -s $ip -p udp -j MARK --set-mark $NFT_FAKEIP_MARK
+            iptables -t mangle -A "$NFT_TABLE_NAME"_MANGLE -s $ip -m set --match-set localv4 dst -j RETURN
+        fi
     fi
 }
 
@@ -1697,17 +1800,26 @@ check_proxy() {
 }
 
 check_nft() {
-    if ! command -v nft > /dev/null 2>&1; then
-        nolog "nft is not installed"
-        return 1
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! command -v nft > /dev/null 2>&1; then
+            nolog "nft is not installed"
+            return 1
+        fi
     fi
 
     nolog "Checking $NFT_TABLE_NAME rules..."
 
     # Check if table exists
-    if ! nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
-        nolog "❌ $NFT_TABLE_NAME not found"
-        return 1
+    if [ "$FIREWALL" == "nftables" ]; then
+        if ! nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
+            nolog "❌ $NFT_TABLE_NAME not found"
+            return 1
+        fi
+    else
+        if ! iptables -t mangle -C "$NFT_TABLE_NAME"_MANGLE -p tcp -j TPROXY --on-port "$TPROXY_PORT" -m mark --mark "$NFT_FAKEIP_MARK" > /dev/null 2>&1; then
+            nolog "❌ Something get wrong with iptables"
+            return 1
+        fi
     fi
 
     local found_hetzner=0
@@ -1740,10 +1852,18 @@ check_nft() {
 
         nolog "Sets statistics:"
         for set_name in $sets; do
-            if nft list set inet "$NFT_TABLE_NAME" $set_name > /dev/null 2>&1; then
-                # Count elements using grep to count commas and add 1 (last element has no comma)
-                local count=$(nft list set inet "$NFT_TABLE_NAME" $set_name 2> /dev/null | grep -o ',\|{' | wc -l)
-                echo "- $set_name: $count elements"
+            if [ "$FIREWALL" == "nftables" ]; then
+                if nft list set inet "$NFT_TABLE_NAME" $set_name > /dev/null 2>&1; then
+                    # Count elements using grep to count commas and add 1 (last element has no comma)
+                    local count=$(nft list set inet "$NFT_TABLE_NAME" $set_name 2> /dev/null | grep -o ',\|{' | wc -l)
+                    echo "- $set_name: $count elements"
+                fi
+            else
+                if ipset list $set_name > /dev/null 2>&1; then
+                    # Count elements using grep to count commas and add 1 (last element has no comma)
+                    local count=$(ipset list $set_name | sed -n 's/Number of entries: \([0-9]\+\)/\1/p')
+                    echo "- $set_name: $count elements"
+                fi
             fi
         done
 
@@ -1751,18 +1871,33 @@ check_nft() {
 
         # Create a temporary file for processing
         local tmp_file=$(mktemp)
-        nft list table inet "$NFT_TABLE_NAME" > "$tmp_file"
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft list table inet "$NFT_TABLE_NAME" > "$tmp_file"
+            # Extract chain configurations without element listings
+            sed -n '/chain mangle {/,/}/p' "$tmp_file" | grep -v "elements" | grep -v "^[[:space:]]*[0-9]"
+            sed -n '/chain proxy {/,/}/p' "$tmp_file" | grep -v "elements" | grep -v "^[[:space:]]*[0-9]"
 
-        # Extract chain configurations without element listings
-        sed -n '/chain mangle {/,/}/p' "$tmp_file" | grep -v "elements" | grep -v "^[[:space:]]*[0-9]"
-        sed -n '/chain proxy {/,/}/p' "$tmp_file" | grep -v "elements" | grep -v "^[[:space:]]*[0-9]"
-
-        # Clean up
-        rm -f "$tmp_file"
+            # Clean up
+            rm -f "$tmp_file"
+        else
+            iptables -t mangle -L "$NFT_TABLE_NAME"_MANGLE --line-numbers
+            echo "------------------------"
+            iptables -t mangle -L "$NFT_TABLE_NAME"_PROXY --line-numbers
+            echo "------------------------"
+            iptables -t mangle -L "$NFT_TABLE_NAME"_MANGLE_OUTPUT --line-numbers
+        fi
     else
         # Simple view as originally implemented
         nolog "Sets configuration:"
-        nft list table inet "$NFT_TABLE_NAME"
+        if [ "$FIREWALL" == "nftables" ]; then
+            nft list table inet "$NFT_TABLE_NAME"
+        else
+            iptables -t mangle -L "$NFT_TABLE_NAME"_MANGLE --line-numbers
+            echo "------------------------"
+            iptables -t mangle -L "$NFT_TABLE_NAME"_PROXY --line-numbers
+            echo "------------------------"
+            iptables -t mangle -L "$NFT_TABLE_NAME"_MANGLE_OUTPUT --line-numbers
+        fi
     fi
 
     nolog "NFT check completed"

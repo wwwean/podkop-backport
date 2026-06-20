@@ -9,15 +9,26 @@ nft_create_table() {
 nft_create_ipv4_set() {
     local table="$1"
     local name="$2"
+    local firewall="$3"
 
-    nft add set inet "$table" "$name" '{ type ipv4_addr; flags interval; auto-merge; }'
+    if [ "$firewall" == "nftables" ]; then
+        nft add set inet "$table" "$name" '{ type ipv4_addr; flags interval; auto-merge; }'
+    else
+        ipset create "$name" hash:net > /dev/null 2>&1
+    fi
 }
 
 nft_create_ifname_set() {
     local table="$1"
     local name="$2"
+    local firewall="$3"
 
-    nft add set inet "$table" "$name" '{ type ifname; flags interval; }'
+    if [ "$firewall" == "nftables" ]; then
+        nft add set inet "$table" "$name" '{ type ifname; flags interval; }'
+    else
+        iptables -t mangle -N "$table"_"$name"
+        iptables -t mangle -A "$table"_"$name" -j DROP
+    fi
 }
 
 # Add one or more elements to a set
@@ -25,8 +36,15 @@ nft_add_set_elements() {
     local table="$1"
     local set="$2"
     local elements="$3"
+    local firewall="$4"
 
-    nft add element inet "$table" "$set" "{ $elements }"
+    if [ "$firewall" == "nftables" ]; then
+        nft add element inet "$table" "$set" "{ $elements }"
+    else
+        for ip in $elements; do
+            ipset add "$set" "$ip" > /dev/null 2>&1
+        done
+    fi
 }
 
 nft_add_set_elements_from_file_chunked() {
@@ -34,6 +52,7 @@ nft_add_set_elements_from_file_chunked() {
     local nft_table_name="$2"
     local nft_set_name="$3"
     local chunk_size="${4:-5000}"
+    local firewall="$4"
 
     local array count
     count=0
@@ -56,15 +75,15 @@ nft_add_set_elements_from_file_chunked() {
         count=$((count + 1))
 
         if [ "$count" = "$chunk_size" ]; then
-            log "Adding $count elements to nft set $nft_set_name" "debug"
-            nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array"
+            log "Adding $count elements to nft/ip set $nft_set_name" "debug"
+            nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array" "$firewall"
             array=""
             count=0
         fi
     done < "$filepath"
 
     if [ -n "$array" ]; then
-        log "Adding $count elements to nft set $nft_set_name" "debug"
-        nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array"
+        log "Adding $count elements to nft/ip set $nft_set_name" "debug"
+        nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array" "$firewall"
     fi
 }
