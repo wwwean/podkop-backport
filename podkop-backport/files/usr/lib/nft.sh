@@ -21,14 +21,8 @@ nft_create_ipv4_set() {
 nft_create_ifname_set() {
     local table="$1"
     local name="$2"
-    local firewall="$3"
 
-    if [ "$firewall" == "nftables" ]; then
-        nft add set inet "$table" "$name" '{ type ifname; flags interval; }'
-    else
-        iptables -t mangle -N "$table"_"$name"
-        iptables -t mangle -A "$table"_"$name" -j DROP
-    fi
+    nft add set inet "$table" "$name" '{ type ifname; flags interval; }'
 }
 
 # Add one or more elements to a set

@@ -1125,7 +1125,7 @@ var DIAGNOSTICS_CHECKS_MAP = {
   },
   ["NFT" /* NFT */]: {
     order: 3,
-    title: getCheckTitle("Nftables"),
+    title: getCheckTitle("Firewall"),
     code: "NFT" /* NFT */
   },
   ["OUTBOUNDS" /* OUTBOUNDS */]: {

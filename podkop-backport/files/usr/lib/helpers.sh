@@ -218,7 +218,9 @@ base64_decode() {
 
 # Generates a unique 16-character ID based on the current timestamp and a random number
 gen_id() {
-    printf '%s%s' "$(date +%s)" "$RANDOM" | md5sum | cut -c1-16
+    # printf '%s%s' "$(date +%s)" "$RANDOM" | md5sum | cut -c1-16
+    # $RANDOM не поддерживается в owrt21
+    printf '%s%s' "$(date +%s)" "$(hexdump -n 2 -e \"%u\" /dev/urandom)" | md5sum | cut -c1-16
 }
 
 # Adds a missing UCI option with the given value if it does not exist
