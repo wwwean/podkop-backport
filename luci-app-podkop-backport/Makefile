@@ -1,8 +1,8 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=luci-app-podkop
+PKG_NAME:=luci-app-podkop-backport
 
-PKG_VERSION := $(if $(PODKOP_VERSION),$(PODKOP_VERSION),0.7.20_$(shell date +%d%m%Y-%H%M%S))
+PKG_VERSION := $(if $(PKG_VERSION),$(PKG_VERSION),backport_0.7.20_$(shell date +%d%m%Y-%H%M%S))
 
 PKG_RELEASE:=1
 

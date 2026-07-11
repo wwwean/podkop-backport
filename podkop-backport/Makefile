@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=podkop-backport
 
-PKG_VERSION := $(if $(PODKOP_VERSION),$(PODKOP_VERSION),backport_0.7.20_$(shell date +%d%m%Y-%H%M%S))
+PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),backport_0.7.20_$(shell date +%d%m%Y-%H%M%S))
 
 PKG_RELEASE:=1
 
@@ -14,7 +14,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/$(PKG_NAME)
 	SECTION:=net
 	CATEGORY:=Network
-	DEPENDS:=+sing-box-backport +curl +jq +coreutils-base64 +bind-dig +bind-nslookup
+	DEPENDS:=+sing-box +curl +jq +coreutils +bind-dig +bind-nslookup
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Domain routing app
 	URL:=https://podkop.net
