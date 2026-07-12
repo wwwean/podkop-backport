@@ -1,7 +1,8 @@
 #!/bin/sh
 # shellcheck shell=dash
 
-REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
+#REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
+REPO="https://github.com/wwwean/podkop-backport/releases/tag/untagged-aefc91b4bc49dfeb02a5"
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 
@@ -55,12 +56,12 @@ pkg_list_update() {
         else
             msg_er "Something went wrong. Let's try fixing the repository (.com --> .cn)"
             msg
-            fix_owrtrepo
+            owrtrepo_fix
         fi
     fi
 }
 
-fix_owrtrepo() {
+owrtrepo_fix() {
     for file in /etc/opkg/*.conf; do
         if ! [ -f "${file}.back" ]; then
             cp "${file}" "${file}.back"
@@ -68,13 +69,14 @@ fix_owrtrepo() {
     done
     cat /etc/opkg/distfeeds.conf >> /etc/opkg/customfeeds.conf
     awk '!seen[$0]++' /etc/opkg/customfeeds.conf > /etc/opkg/customfeeds.conf.tmp && mv /etc/opkg/customfeeds.conf.tmp /etc/opkg/customfeeds.conf
-    #sed -i "/^#/! s/^/#/" /etc/opkg/distfeeds.conf
+    sed -i "/^#/! s/^/#/" /etc/opkg/distfeeds.conf
+    sed -i "/^src\/gz openwrt_/s|openwrts.org|openwrt.org|g" /etc/opkg/customfeeds.conf
     #sed -i "/^src\/gz openwrt_/s|openwrts.org|openwrt.org|g" /etc/opkg/customfeeds.conf
-    # if [ "$PKG_IS_APK" -eq 1 ]; then
-    #     apk update
-    # else
-    #     opkg update
-    # fi
+    if [ "$PKG_IS_APK" -eq 1 ]; then
+        apk update
+    else
+        opkg update
+    fi
 }
 
 pkg_install() {
@@ -90,58 +92,10 @@ pkg_install() {
     msg
 }
 
-update_config() {
-    printf "\033[48;5;196m\033[1m╔══════════════════════════════════════════════════════════════════════╗\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ ! Обнаружена старая версия podkop.                                   ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Если продолжите обновление, вам потребуется настроить Podkop заново. ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Старая конфигурация будет сохранена в /etc/config/podkop-070         ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Подробности: https://github.com/itdoginfo/podkop                     ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Точно хотите продолжить?                                             ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m╚══════════════════════════════════════════════════════════════════════╝\033[0m\n"
-
-    echo ""
-
-    printf "\033[48;5;196m\033[1m╔══════════════════════════════════════════════════════════════════════╗\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ ! Detected old podkop version.                                       ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ If you continue the update, you will need to RECONFIGURE podkop.     ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Your old configuration will be saved to /etc/config/podkop-070       ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Details: https://github.com/itdoginfo/podkop                         ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m║ Are you sure you want to continue?                                   ║\033[0m\n"
-    printf "\033[48;5;196m\033[1m╚══════════════════════════════════════════════════════════════════════╝\033[0m\n"
-
-    msg "Continue? (yes/no)"
-
-    while true; do
-            read -r -p '' CONFIG_UPDATE
-            case $CONFIG_UPDATE in
-
-            yes|y|Y)
-                mv /etc/config/podkop /etc/config/podkop-070
-                wget -O /etc/config/podkop https://raw.githubusercontent.com/itdoginfo/podkop/refs/heads/main/podkop/files/etc/config/podkop
-                msg "Podkop config has been reset to default. Your old config saved in /etc/config/podkop-070"
-                break
-                ;;
-            *)
-                msg "Exit"
-                exit 1
-                ;;
-        esac
-    done
-}
-
-main() {
-    /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-    pkg_list_update || { msg_er "Packages list update failed"; exit 1; }
-    exit 1
-    
-    check_system
-    sing_box
-
-
-    if [ -f "/etc/init.d/podkop" ]; then
-        msg "Podkop is already installed. Upgrading..."
-    else
-        msg "Installing podkop..."
+pkg_download() {
+    if ! nslookup google.com >/dev/null 2>&1; then
+        msg_er "DNS is not working."
+        exit 1
     fi
 
     if command -v curl >/dev/null 2>&1; then
@@ -179,14 +133,106 @@ main() {
         done
 
         if [ $attempt -eq $COUNT ]; then
-            msg_er "Failed to download $filename after $COUNT attempts"
+            msg "Failed to download $filename after $COUNT attempts"
         fi
     done
 
-    # Check if any files were downloaded
-    if ! ls "$DOWNLOAD_DIR"/*podkop* >/dev/null 2>&1; then
-        msg_er "No packages were downloaded successfully"
-        exit 1
+    msg "Check if required packages were downloaded"
+    for pkg in sing-box jq coreutils podkop luci-app-podkop luci-i18n-podkop; do
+        if ! ls "$DOWNLOAD_DIR"/"$pkg"* >/dev/null 2>&1; then
+            msg_er "$pkg was not downloaded successfully"
+            exit 1
+        fi
+    done
+    msg "Ok"
+    msg
+}
+
+update_config() {
+    printf "\033[48;5;196m\033[1m╔══════════════════════════════════════════════════════════════════════╗\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ ! Обнаружена старая версия podkop.                                   ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Если продолжите обновление, вам потребуется настроить Podkop заново. ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Старая конфигурация будет сохранена в /etc/config/podkop-070         ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Подробности: https://github.com/itdoginfo/podkop                     ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Точно хотите продолжить?                                             ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m╚══════════════════════════════════════════════════════════════════════╝\033[0m\n"
+
+    echo ""
+
+    printf "\033[48;5;196m\033[1m╔══════════════════════════════════════════════════════════════════════╗\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ ! Detected old podkop version.                                       ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ If you continue the update, you will need to RECONFIGURE podkop.     ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Your old configuration will be saved to /etc/config/podkop-070       ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Details: https://github.com/itdoginfo/podkop                         ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m║ Are you sure you want to continue?                                   ║\033[0m\n"
+    printf "\033[48;5;196m\033[1m╚══════════════════════════════════════════════════════════════════════╝\033[0m\n"
+
+    msg "Continue? (yes/no)"
+
+    while true; do
+            read -r -p '' CONFIG_UPDATE
+            case $CONFIG_UPDATE in
+
+            yes|y|Y)
+                mv /etc/config/podkop /etc/config/podkop-070
+                wget -O /etc/config/podkop https://raw.githubusercontent.com/itdoginfo/podkop/refs/heads/main/podkop/files/etc/config/podkop
+                msg "Podkop config has been reset to default. Your old config saved in /etc/config/podkop-070"
+                echo /etc/config/podkop-070
+                break
+                ;;
+            *)
+                msg "Exit"
+                exit 1
+                ;;
+        esac
+    done
+}
+
+main() {
+    msg "Check and update packages list..."
+    /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
+    pkg_list_update || { msg_er "Packages list update failed"; exit 1; }
+    
+    msg "Check and prepare system..."
+    prepare_system
+
+    msg "Check sing-box..."
+    sing_box
+
+    if [ -f "/etc/init.d/podkop" ]; then
+        msg "Podkop is already installed. Upgrading..."
+
+        # Check version
+        msg "Check podkop version"
+        if command -v podkop > /dev/null 2>&1; then
+            local version
+            version=$(/usr/bin/podkop show_version 2> /dev/null)
+            if [ -n "$version" ]; then
+                version=$(echo "$version" | sed -E 's/^backport_([0-9.]+).*/\1/')
+                local major
+                local minor
+                local patch
+                major=$(echo "$version" | cut -d. -f1 2> /dev/null) 
+                minor=$(echo "$version" | cut -d. -f2 2> /dev/null)
+                patch=$(echo "$version" | cut -d. -f3 2> /dev/null)
+
+                # Compare version: must be >= 0.7.0
+                if [ "$major" -gt 0 ] ||
+                    [ "$major" -eq 0 ] && [ "$minor" -gt 7 ] ||
+                    [ "$major" -eq 0 ] && [ "$minor" -eq 7 ] && [ "$patch" -ge 0 ]; then
+                    msg "Podkop version >= 0.7.0"
+                    break
+                else
+                    msg "Podkop version < 0.7.0. Update config..."
+                    update_config
+                fi
+            else
+                msg "Unknown podkop version. Update config..."
+                update_config
+            fi
+        fi
+    else
+        msg "Installing podkop..."
     fi
 
     for pkg in podkop luci-app-podkop; do
@@ -240,8 +286,7 @@ main() {
     find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
 }
 
-check_system() {
-    msg "Check and prepare system..."
+prepare_system() {
     # Get router model
     MODEL=$(cat /tmp/sysinfo/model)
     msg "Router model: $MODEL"
@@ -280,47 +325,9 @@ check_system() {
         msg_er "Required: $((REQUIRED_SPACE/1024))MB"
         exit 1
     fi
-    if ! nslookup google.com >/dev/null 2>&1; then
-        msg_er "DNS is not working."
-        exit 1
-    fi
 
-    # Download required packages
     msg "Download required packages"
-    local urls="https://downloads.openwrt.org/releases/packages-24.10/x86_64/packages/jq_1.8.1-r1_x86_64.ipk \
-    https://downloads.openwrt.org/releases/packages-24.10/x86_64/packages/coreutils-base64_9.7-r1_x86_64.ipk"
-
-    for url in $urls; do
-        filename=$(basename "$url")
-        filepath="$DOWNLOAD_DIR/$filename"
-
-        attempt=0
-        while [ $attempt -lt $COUNT ]; do
-            msg "Download $filename (count $((attempt+1)))..."
-            if wget -q -O "$filepath" "$url"; then
-                if [ -s "$filepath" ]; then
-                    msg "$filename successfully downloaded"
-                    break
-                fi
-            fi
-            msg "Download error for $filename. Retrying..."
-            rm -f "$filepath"
-            attempt=$((attempt+1))
-        done
-
-        if [ $attempt -eq $COUNT ]; then
-            msg "Failed to download $filename after $COUNT attempts"
-        fi
-    done
-
-    # Check if required files were downloaded
-    for pkg in jq coreutils; do
-        if ! ls "$DOWNLOAD_DIR"/"$pkg"* >/dev/null 2>&1; then
-            msg_er "$pkg was not downloaded successfully"
-            exit 1
-        fi
-    done
-    msg
+    pkg_download
 
     msg "Install/Update required packages"
     for pkg in jq coreutils; do
@@ -337,36 +344,6 @@ check_system() {
             sleep 3
         fi
     done
-
-    # Check version
-    msg "Check podkop version (if installed)"
-    if command -v podkop > /dev/null 2>&1; then
-        local version
-        version=$(/usr/bin/podkop show_version 2> /dev/null)
-        if [ -n "$version" ]; then
-            version=$(echo "$version" | sed -E 's/^backport_([0-9.]+).*/\1/')
-            local major
-            local minor
-            local patch
-            major=$(echo "$version" | cut -d. -f1 2> /dev/null) 
-            minor=$(echo "$version" | cut -d. -f2 2> /dev/null)
-            patch=$(echo "$version" | cut -d. -f3 2> /dev/null)
-
-            # Compare version: must be >= 0.7.0
-            if [ "$major" -gt 0 ] ||
-                [ "$major" -eq 0 ] && [ "$minor" -gt 7 ] ||
-                [ "$major" -eq 0 ] && [ "$minor" -eq 7 ] && [ "$patch" -ge 0 ]; then
-                msg "Podkop version >= 0.7.0"
-                break
-            else
-                msg "Podkop version < 0.7.0. Update config..."
-                update_config
-            fi
-        else
-            msg "Unknown podkop version. Update config..."
-            update_config
-        fi
-    fi
 
     if pkg_is_installed https-dns-proxy; then
         msg "Conflicting package detected: https-dns-proxy. Remove?"
@@ -388,13 +365,12 @@ check_system() {
             esac
         done
     fi
-    msg "System is ready"
+    msg "System is OK"
     msg "---------------------------------------------------------------------------"
     msg
 }
 
 sing_box() {
-    msg "Check sing-box..."
     if ! pkg_is_installed "^sing-box"; then
         msg_er "Sing-box is not installed"
         sing_box_install
@@ -411,7 +387,7 @@ sing_box() {
         sleep 3
         sing_box_install
     fi
-    msg "Sing-box successfully installed/update"
+    msg "Sing-box is OK"
     msg "---------------------------------------------------------------------------"
     msg
 }

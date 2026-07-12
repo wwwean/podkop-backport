@@ -318,7 +318,7 @@ create_nft_rules() {
         nft_create_table "$NFT_TABLE_NAME"
 
         log "Create localv4 set"
-        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME"
+        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME" "$FIREWALL"
         nft add element inet "$NFT_TABLE_NAME" localv4 '{
             0.0.0.0/8,
             10.0.0.0/8,
@@ -336,7 +336,7 @@ create_nft_rules() {
         }'
 
         log "Create common set"
-        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
+        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME" "$FIREWALL"
 
         log "Create interface set"
         nft_init_interfaces_set
