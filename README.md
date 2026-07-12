@@ -31,11 +31,17 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 ### Перед установкой нужно проверить наличие следующих пакетов:
 a. Для версии OpenWrt до 21 включительно: iptables-mod-tproxy. Есть в репозитории, ставим через Luci или ssh.\
 b. Для версии OpenWrt 22 и новее: kmod-nft-tproxy, установка аналогичная.\
-с. Для всех версий: jq и coreutils-base64 требуемы версий - качаем и устанавливаем пакет из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) через Luci или ssh.\
+с. Для всех версий: jq и coreutils-base64 требуемых версий - качаем и устанавливаем пакет из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) через Luci или ssh.\
 После успешной установки перечисленных выше пакетов качаем и устанавливаем пакет Podkop из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) через Luci или ssh.
 
 ## 3. Установка Luci App Podkop
 Качаем и устанавливаем пакет из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) через Luci или ssh. Русифицируем по желанию.
+
+# Обоновление
+Для обновления заходим на роутер через ssh, скачиваем и запускаем установочный скрипт:
+```
+wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/0.7.20/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
+```
 
 # Известные проблемы
 В процессе установки Luci App Podkop проскаивают ошибки - игнорим их, на работу не влияют :)
