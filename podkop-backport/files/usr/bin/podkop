@@ -2191,6 +2191,10 @@ check_dhcp_has_podkop_dns() {
     if [ "$cachesize" != "0" ] || [ "$noresolv" != "1" ] || [ "$server_found" != "1" ]; then
         dhcp_config_status=0
     fi
+
+    if [ "$server_found" = "1" ]; then
+        break
+    fi
 }
 
 check_nft_rules() {
