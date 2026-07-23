@@ -1,17 +1,26 @@
 #!/bin/sh
 # shellcheck shell=dash
+set -e
 
 #REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
-REPO="https://github.com/wwwean/podkop-backport/releases/tag/untagged-aefc91b4bc49dfeb02a5"
+# REPO="https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/coreutils-base64_9.7-r1_aarch64_generic.ipk
+# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/jq_1.8.1-r1_aarch64_generic.ipk
+# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/luci-app-podkop-backport_0.7.20.ipk
+# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/luci-i18n-podkop-backport-ru.ipk
+# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/podkop-backport_0.7.20.ipk
+# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/sing-box_backport_1.12.22_arm64.ipk
+# # "
+
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
+FIX_REPO=0
 
 # Cached flag to switch between ipk or apk package managers
 PKG_IS_APK=0
 command -v apk >/dev/null 2>&1 && PKG_IS_APK=1
 
-rm -rf "$DOWNLOAD_DIR"
-mkdir -p "$DOWNLOAD_DIR"
+# rm -rf "$DOWNLOAD_DIR"
+# mkdir -p "$DOWNLOAD_DIR"
 
 msg() {
     printf "\033[32;1m%s\033[0m\n" "$1"
@@ -44,39 +53,52 @@ pkg_remove() {
     else
         opkg remove --force-depends "$pkg_name"
     fi
-    msg
 }
 
 pkg_list_update() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
         apk update
     else
-        if opkg update; then
-            exit 0
-        else
-            msg_er "Something went wrong. Let's try fixing the repository (.com --> .cn)"
-            msg
-            owrtrepo_fix
+        opkg update
+        if [ $? -ne 0 ]; then
+            if ! echo $MODEL | grep -qi "gl.inet"; then
+                if [ $FIX_REPO -ne "1" ] ; then
+                    msg_er "Failed to update packages list. Let's try fixing gl-inet repository feeds (.com --> .cn)."
+                    repo_fix
+                else
+                    for file in /etc/opkg/*.conf; do
+                        mv "${file}.back" "${file}" 2> /dev/null
+                    done
+                    msg_er "Failed to update packages list. Please try again later. The repository feeds have been rolled back."
+                    exit 1
+                fi
+            else
+                msg_er "Failed to update packages list. Please try again later."
+                exit 1
+            fi
         fi
     fi
+    msg "Ok"
+    msg
 }
 
-owrtrepo_fix() {
+repo_fix() {
+    msg "Backup default repository feeds"
     for file in /etc/opkg/*.conf; do
         if ! [ -f "${file}.back" ]; then
             cp "${file}" "${file}.back"
         fi
     done
+
     cat /etc/opkg/distfeeds.conf >> /etc/opkg/customfeeds.conf
-    awk '!seen[$0]++' /etc/opkg/customfeeds.conf > /etc/opkg/customfeeds.conf.tmp && mv /etc/opkg/customfeeds.conf.tmp /etc/opkg/customfeeds.conf
+    awk '!seen[substr($0, ($0 ~ /^#/ ? 2 : 1))]++' /etc/opkg/customfeeds.conf > /etc/opkg/customfeeds.conf.tmp && mv /etc/opkg/customfeeds.conf.tmp /etc/opkg/customfeeds.conf
     sed -i "/^#/! s/^/#/" /etc/opkg/distfeeds.conf
-    sed -i "/^src\/gz openwrt_/s|openwrts.org|openwrt.org|g" /etc/opkg/customfeeds.conf
-    #sed -i "/^src\/gz openwrt_/s|openwrts.org|openwrt.org|g" /etc/opkg/customfeeds.conf
-    if [ "$PKG_IS_APK" -eq 1 ]; then
-        apk update
-    else
-        opkg update
-    fi
+    sed -i "/^src\/gz /s|gl-inet.com|gl-inet.cn|g" /etc/opkg/customfeeds.conf
+    # sed -i -E 's#(https?://[^/ ]*)\.org([/ ]|$)#\1.cn\2#g; s#(https?://[^/ ]*)\.com([/ ]|$)#\1.cn\2#g' /etc/opkg/distfeeds.conf
+    FIX_REPO=1
+
+    msg "Trying to update package list after fixing repository feeds."
+    pkg_list_update
 }
 
 pkg_install() {
@@ -85,11 +107,14 @@ pkg_install() {
     if [ "$PKG_IS_APK" -eq 1 ]; then
         # Can't install without flag based on info from documentation
         # If you're installing a non-standard (self-built) package, use the --allow-untrusted option:
-        apk add --allow-untrusted "$pkg_file"
+        if ! apk add --allow-untrusted "$pkg_file"; then
+            exit 1
+        fi
     else
-        opkg install "$pkg_file"
+        if ! opkg install --force-downgrade "$pkg_file"; then
+            exit 1
+        fi
     fi
-    msg
 }
 
 pkg_download() {
@@ -114,14 +139,18 @@ pkg_download() {
         grep_url_pattern='https://[^"[:space:]]*\.ipk'
     fi
 
-    wget -qO- "$REPO" | grep -o "$grep_url_pattern" | while read -r url; do
+    tmpfile="/tmp/urls.$$"
+    trap 'rm -f "$tmpfile"' EXIT INT TERM
+    wget --timeout=60 -qO- "$REPO" | grep -o "$grep_url_pattern" > "$tmpfile"
+    # echo "$REPO" > "$tmpfile"
+    while read -r url; do
         filename=$(basename "$url")
         filepath="$DOWNLOAD_DIR/$filename"
 
         attempt=0
         while [ $attempt -lt $COUNT ]; do
             msg "Download $filename (count $((attempt+1)))..."
-            if wget -q -O "$filepath" "$url"; then
+            if wget --timeout=60 -q -O "$filepath" "$url"; then
                 if [ -s "$filepath" ]; then
                     msg "$filename successfully downloaded"
                     break
@@ -133,9 +162,11 @@ pkg_download() {
         done
 
         if [ $attempt -eq $COUNT ]; then
-            msg "Failed to download $filename after $COUNT attempts"
+            msg_er "Failed to download $filename after $COUNT attempts"
+            msg_er "Try again later"
+            exit 1
         fi
-    done
+    done < "$tmpfile"
 
     msg "Check if required packages were downloaded"
     for pkg in sing-box jq coreutils podkop luci-app-podkop luci-i18n-podkop; do
@@ -174,11 +205,14 @@ update_config() {
             case $CONFIG_UPDATE in
 
             yes|y|Y)
-                mv /etc/config/podkop /etc/config/podkop-070
-                wget -O /etc/config/podkop https://raw.githubusercontent.com/itdoginfo/podkop/refs/heads/main/podkop/files/etc/config/podkop
-                msg "Podkop config has been reset to default. Your old config saved in /etc/config/podkop-070"
-                echo /etc/config/podkop-070
-                break
+                cp /etc/config/podkop /etc/config/podkop-070
+                if wget --timeout=60 -qO /etc/config/podkop https://raw.githubusercontent.com/itdoginfo/podkop/refs/heads/main/podkop/files/etc/config/podkop; then
+                    msg "Podkop config has been reset to default. Your old config saved in /etc/config/podkop-070"
+                    break
+                else
+                    msg_er "New podkop config was not downloaded successfully. Try again later"
+                    exit 1
+                fi
                 ;;
             *)
                 msg "Exit"
@@ -189,18 +223,21 @@ update_config() {
 }
 
 main() {
-    msg "Check and update packages list..."
-    /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-    pkg_list_update || { msg_er "Packages list update failed"; exit 1; }
-    
-    msg "Check and prepare system..."
+    # Get router model
+    MODEL=$(cat /tmp/sysinfo/model)
+    msg "Router model: $MODEL"
+    msg
+
+    msg "Check and prepare"
     prepare_system
 
-    msg "Check sing-box..."
+    msg "Check sing-box"
     sing_box
 
     if [ -f "/etc/init.d/podkop" ]; then
         msg "Podkop is already installed. Upgrading..."
+        /etc/init.d/podkop stop 2> /dev/null
+        sleep 3
 
         # Check version
         msg "Check podkop version"
@@ -208,17 +245,17 @@ main() {
             local version
             version=$(/usr/bin/podkop show_version 2> /dev/null)
             if [ -n "$version" ]; then
-                version=$(echo "$version" | sed -E 's/^backport_([0-9.]+).*/\1/')
+                version=$(echo "$version" | sed -E 's/^(backport_)?(dev_)?([0-9.]+).*/\3/')
                 local major
                 local minor
                 local patch
-                major=$(echo "$version" | cut -d. -f1 2> /dev/null) 
+                major=$(echo "$version" | cut -d. -f1 2> /dev/null)
                 minor=$(echo "$version" | cut -d. -f2 2> /dev/null)
                 patch=$(echo "$version" | cut -d. -f3 2> /dev/null)
 
                 # Compare version: must be >= 0.7.0
-                if [ "$major" -gt 0 ] ||
-                    [ "$major" -eq 0 ] && [ "$minor" -gt 7 ] ||
+                if [ "$major" -gt 0 ] || 
+                    [ "$major" -eq 0 ] && [ "$minor" -gt 7 ] || 
                     [ "$major" -eq 0 ] && [ "$minor" -eq 7 ] && [ "$patch" -ge 0 ]; then
                     msg "Podkop version >= 0.7.0"
                     break
@@ -232,7 +269,7 @@ main() {
             fi
         fi
     else
-        msg "Installing podkop..."
+        msg "Installing podkop"
     fi
 
     for pkg in podkop luci-app-podkop; do
@@ -249,27 +286,31 @@ main() {
             sleep 3
         fi
     done
+    msg "Ok"
+    msg
 
     ru=""
-    for f in "$DOWNLOAD_DIR"/luci-i18n-podkop-ru*; do
+    for f in "$DOWNLOAD_DIR"/luci-i18n-podkop*; do
         if [ -f "$f" ]; then
             ru=$(basename "$f")
             break
         fi
     done
     if [ -n "$ru" ]; then
-        if pkg_is_installed luci-i18n-podkop-ru; then
+        if pkg_is_installed luci-i18n-podkop; then
                 msg "Upgrading Russian translation..."
                 pkg_remove luci-i18n-podkop*
                 pkg_install "$DOWNLOAD_DIR/$ru"
+                msg "Ok"
         else
             msg "Русский язык интерфейса ставим? y/n (Install the Russian interface language?)"
             while true; do
                 read -r -p '' RUS
                 case $RUS in
                 y)
-                    pkg_remove luci-i18n-podkop*
+                    pkg_remove luci-i18n-podkop* > /dev/null 2>&1
                     pkg_install "$DOWNLOAD_DIR/$ru"
+                    msg "Ok"
                     break
                     ;;
                 n)
@@ -282,15 +323,16 @@ main() {
             done
         fi
     fi
+    msg
 
-    find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
+    # find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
+    msg "Congratulations! New Podkop is running now"
 }
 
 prepare_system() {
-    # Get router model
-    MODEL=$(cat /tmp/sysinfo/model)
-    msg "Router model: $MODEL"
-    msg
+    msg "Check and update packages list"
+    /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
+    pkg_list_update || { msg_er "Packages list update failed"; exit 1; }
 
     # Get OpenWrt version
     local openwrt_version=$(cat /etc/openwrt_release | grep DISTRIB_RELEASE | cut -d"'" -f2 | cut -d'.' -f1)
@@ -308,12 +350,13 @@ prepare_system() {
     # Check/Install Tproxy
     local def_openwrt_ver=21
     if [[ "$openwrt_version" -le "$def_openwrt_ver" ]]; then
-        msg "Check/Install iptables-mod-tproxy..."
+        msg "Check/Install iptables-mod-tproxy"
         pkg_install iptables-mod-tproxy
     else
         msg "Check/Install kmod-nft-tproxy"
         pkg_install kmod-nft-tproxy
     fi
+    msg "Ok"
     msg
 
     # Check available space
@@ -327,7 +370,7 @@ prepare_system() {
     fi
 
     msg "Download required packages"
-    pkg_download
+    # pkg_download
 
     msg "Install/Update required packages"
     for pkg in jq coreutils; do
@@ -365,8 +408,7 @@ prepare_system() {
             esac
         done
     fi
-    msg "System is OK"
-    msg "---------------------------------------------------------------------------"
+    msg "Ok"
     msg
 }
 
@@ -376,24 +418,25 @@ sing_box() {
         sing_box_install
     fi
 
-    sing_box_version=$(sing-box version | head -n 1 | awk '{print $3}')
-    required_version="1.12.4"
+    sing_box_version=$(sing-box version | sed -nE 's/.*version ([0-9.]+)(-.*)?/\1/p')
+    latest_version=$(curl -s https://api.github.com/repos/shtorm-7/sing-box-extended/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//' | sed -nE 's/([0-9.]+)(-.*)?/\1/p')
+    required_version=$latest_version
 
     if [ "$(printf '%s\n%s\n' "$sing_box_version" "$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
         msg_er "sing-box version $sing_box_version is older than the required version $required_version."
         msg "Removing old version..."
-        service podkop stop > /dev/null 2>&1
-        pkg_remove sing-box
+        /etc/init.d/podkop stop > /dev/null 2>&1
         sleep 3
+        pkg_remove sing-box
+
+        msg "Install/update sing-box-extended"
         sing_box_install
     fi
-    msg "Sing-box is OK"
-    msg "---------------------------------------------------------------------------"
+    msg "Ok"
     msg
 }
 
 sing_box_install() {
-    msg "Install/update sing-box"
     sb=$(ls "$DOWNLOAD_DIR" | grep "sing-box" | head -n 1)
     pkg_install "$DOWNLOAD_DIR/$sb"
     sleep 3

@@ -35,7 +35,7 @@ nft_add_set_elements() {
     if [ "$firewall" == "nftables" ]; then
         nft add element inet "$table" "$set" "{ $elements }"
     else
-        for ip in $elements; do
+        for ip in ${elements//,/ }; do
             ipset add "$set" "$ip" > /dev/null 2>&1
         done
     fi

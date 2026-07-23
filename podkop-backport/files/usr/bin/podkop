@@ -412,8 +412,8 @@ create_nft_rules() {
         iptables -t mangle -A "$NFT_TABLE_NAME"_OUTPUT -d "$SB_FAKEIP_INET4_RANGE" -p udp -j MARK --set-mark "$NFT_FAKEIP_MARK"
 
         iptables -t mangle -A "$NFT_TABLE_NAME" -m mark --mark "${NFT_FAKEIP_MARK}/${NFT_FAKEIP_MARK}" -j "$NFT_TABLE_NAME"_PROXY
-        iptables -t mangle -A OUTPUT -j "$NFT_TABLE_NAME"_OUTPUT
-        iptables -t mangle -A PREROUTING -j "$NFT_TABLE_NAME"
+        iptables -t mangle -I OUTPUT -j "$NFT_TABLE_NAME"_OUTPUT
+        iptables -t mangle -I PREROUTING -j "$NFT_TABLE_NAME"
     fi
 
     local exclude_ntp
@@ -2342,7 +2342,7 @@ check_sing_box() {
         local version
         version=$(sing-box version 2> /dev/null | head -n 1 | awk '{print $3}')
         if [ -n "$version" ]; then
-            version=$(echo "$version" | sed 's/^v//')
+            version=$(echo "$version" | sed -E 's/^v?([0-9.]+)(-.*)?/\1/')
             local major
             local minor
             local patch
