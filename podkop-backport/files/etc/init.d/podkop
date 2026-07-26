@@ -20,6 +20,47 @@ start_service() {
         procd_set_param netdev "$badwan_monitored_interfaces"
     procd_set_param stdout 1
     procd_set_param stderr 1
+
+    (
+        MAX_RESTARTS=3
+        COUNTER_FILE="/tmp/podkop_watchdog_restarts"
+        SLEEP_BEFORE_CHECK=10
+
+        sleep $SLEEP_BEFORE_CHECK
+        logger -t podkop_watchdog "Starting podkop watchdog ..."
+
+        restarts=0
+        [ -f "$COUNTER_FILE" ] && restarts=$(cat "$COUNTER_FILE")
+
+        if [ "$restarts" -ge "$MAX_RESTARTS" ]; then
+            logger -t podkop_watchdog "Max restarts ($MAX_RESTARTS) reached. Giving up."
+            rm -f "$COUNTER_FILE"
+            exit 1
+        fi
+
+        health=$(/usr/bin/podkop global_check)
+        if ! echo "$health" | grep -qiE "failed|Router DNS is NOT routed through sing-box"; then
+            rm -f "$COUNTER_FILE"
+            logger -t podkop_watchdog "Health check PASSED. Watchdog finished."
+            exit 0
+        else
+            failed=$(echo "$health" | grep -iE "failed|Router DNS is NOT routed through sing-box")
+        fi
+
+        restarts=$((restarts + 1))
+        echo "$restarts" > "$COUNTER_FILE"
+
+        if [ "$restarts" -ge "$MAX_RESTARTS" ]; then
+            logger -t podkop_watchdog "Health check FAILED after $MAX_RESTARTS restarts. Giving up."
+            rm -f "$COUNTER_FILE"
+            exit 1
+        fi
+
+        logger -t podkop_watchdog "Health check FAILED ($failed) (restart $restarts of $MAX_RESTARTS). Restarting podkop..."
+        /etc/init.d/podkop restart
+        exit 0
+    ) &
+
     procd_close_instance
 }
 
