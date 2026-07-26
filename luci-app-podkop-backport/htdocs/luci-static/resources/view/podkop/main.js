@@ -3932,7 +3932,7 @@ async function runSectionsCheck() {
 
 // src/helpers/removeVersionPrefix.ts
 function removeVersionPrefix(version) {
-  return version.replace(/^v/, "");
+  return version.replace(/^v|backport_/, "");
 }
 
 // src/podkop/tabs/diagnostic/helpers/getPodkopVersionRow.ts
