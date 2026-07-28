@@ -86,7 +86,7 @@ service_triggers() {
 
     if [ "$enable_badwan_interface_monitoring" = "1" ]; then
         for iface in $badwan_monitored_interfaces; do
-            procd_add_interface_trigger "interface.*.up" "$iface" /etc/init.d/podkop reload
+            procd_add_interface_trigger "interface.*.up" "$iface" /etc/init.d/podkop restart
         done
     fi
     procd_close_trigger
