@@ -35,7 +35,7 @@ define Package/$(PKG_NAME)/prerm
 
 grep -q "105 podkop" /etc/iproute2/rt_tables && sed -i "/105 podkop/d" /etc/iproute2/rt_tables
 
-/etc/init.d/podkop stop
+/etc/init.d/podkop stop 2> /dev/null
 
 exit 0
 endef
