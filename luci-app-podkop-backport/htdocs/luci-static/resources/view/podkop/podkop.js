@@ -1,93 +1,98 @@
-'use strict';
-'require view';
-'require form';
-'require network';
-'require view.podkop.configSection as configSection';
-'require view.podkop.diagnosticTab as diagnosticTab';
-'require view.podkop.additionalTab as additionalTab';
-'require view.podkop.utils as utils';
+"use strict";
+"require view";
+"require form";
+"require baseclass";
+"require network";
+"require view.podkop.main as main";
 
-return view.extend({
-    async render() {
-        document.head.insertAdjacentHTML('beforeend', `
-            <style>
-                .cbi-value {
-                    margin-bottom: 10px !important;
-                }
+// Settings content
+"require view.podkop.settings as settings";
 
-                #diagnostics-status .table > div {
-                    background: var(--background-color-primary);
-                    border: 1px solid var(--border-color-medium);
-                    border-radius: var(--border-radius);
-                }
+// Sections content
+"require view.podkop.section as section";
 
-                #diagnostics-status .table > div pre,
-                #diagnostics-status .table > div div[style*="monospace"] {
-                    color: var(--color-text-primary);
-                }
+// Dashboard content
+"require view.podkop.dashboard as dashboard";
 
-                #diagnostics-status .alert-message {
-                    background: var(--background-color-primary);
-                    border-color: var(--border-color-medium);
-                }
+// Diagnostic content
+"require view.podkop.diagnostic as diagnostic";
 
-                #cbi-podkop:has(.cbi-tab-disabled[data-tab="basic"]) #cbi-podkop-extra {
-                    display: none;
-                }
-            </style>
-        `);
+const EntryPoint = {
+  async render() {
+    main.injectGlobalStyles();
 
-        const m = new form.Map('podkop', _(''), null, ['main', 'extra']);
+    const podkopMap = new form.Map(
+      "podkop",
+      _("Podkop Settings"),
+      _("Configuration for Podkop service"),
+    );
+    // Enable tab views
+    podkopMap.tabbed = true;
 
-        // Main Section
-        const mainSection = m.section(form.TypedSection, 'main');
-        mainSection.anonymous = true;
-        configSection.createConfigSection(mainSection, m, network);
+    // Sections tab
+    const sectionsSection = podkopMap.section(
+      form.TypedSection,
+      "section",
+      _("Sections"),
+    );
+    sectionsSection.anonymous = false;
+    sectionsSection.addremove = true;
+    sectionsSection.template = "cbi/simpleform";
 
-        // Additional Settings Tab (main section)
-        additionalTab.createAdditionalSection(mainSection, network);
+    // Render section content
+    section.createSectionContent(sectionsSection);
 
-        // Diagnostics Tab (main section)
-        diagnosticTab.createDiagnosticsSection(mainSection);
-        const map_promise = m.render().then(node => {
-            // Set up diagnostics event handlers
-            diagnosticTab.setupDiagnosticsEventHandlers(node);
+    // Settings tab
+    const settingsSection = podkopMap.section(
+      form.TypedSection,
+      "settings",
+      _("Settings"),
+    );
+    settingsSection.anonymous = true;
+    settingsSection.addremove = false;
+    // Make it named [ config settings 'settings' ]
+    settingsSection.cfgsections = function () {
+      return ["settings"];
+    };
 
-            // Start critical error polling for all tabs
-            utils.startErrorPolling();
+    // Render settings content
+    settings.createSettingsContent(settingsSection);
 
-            // Add event listener to keep error polling active when switching tabs
-            const tabs = node.querySelectorAll('.cbi-tabmenu');
-            if (tabs.length > 0) {
-                tabs[0].addEventListener('click', function (e) {
-                    const tab = e.target.closest('.cbi-tab');
-                    if (tab) {
-                        // Ensure error polling continues when switching tabs
-                        utils.startErrorPolling();
-                    }
-                });
-            }
+    // Diagnostic tab
+    const diagnosticSection = podkopMap.section(
+      form.TypedSection,
+      "diagnostic",
+      _("Diagnostics"),
+    );
+    diagnosticSection.anonymous = true;
+    diagnosticSection.addremove = false;
+    diagnosticSection.cfgsections = function () {
+      return ["diagnostic"];
+    };
 
-            // Add visibility change handler to manage error polling
-            document.addEventListener('visibilitychange', function () {
-                if (document.hidden) {
-                    utils.stopErrorPolling();
-                } else {
-                    utils.startErrorPolling();
-                }
-            });
+    // Render diagnostic content
+    diagnostic.createDiagnosticContent(diagnosticSection);
 
-            return node;
-        });
+    // Dashboard tab
+    const dashboardSection = podkopMap.section(
+      form.TypedSection,
+      "dashboard",
+      _("Dashboard"),
+    );
+    dashboardSection.anonymous = true;
+    dashboardSection.addremove = false;
+    dashboardSection.cfgsections = function () {
+      return ["dashboard"];
+    };
 
-        // Extra Section
-        const extraSection = m.section(form.TypedSection, 'extra', _('Extra configurations'));
-        extraSection.anonymous = false;
-        extraSection.addremove = true;
-        extraSection.addbtntitle = _('Add Section');
-        extraSection.multiple = true;
-        configSection.createConfigSection(extraSection, m, network);
+    // Render dashboard content
+    dashboard.createDashboardContent(dashboardSection);
 
-        return map_promise;
-    }
-});
+    // Inject core service
+    main.coreService();
+
+    return podkopMap.render();
+  },
+};
+
+return view.extend(EntryPoint);
