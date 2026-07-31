@@ -3,7 +3,7 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=podkop
 
 #PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),backport_0.7.20_$(shell date +%d%m%Y-%H%M%S))
-PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),backport_0.7.20)
+PKG_VERSION:= $(if $(PKG_VERSION),$(PKG_VERSION),backport-0.7.20)
 
 PKG_MAINTAINER:=ITDog <podkop@itdog.info>
 PKG_LICENSE:=GPL-2.0-or-later
