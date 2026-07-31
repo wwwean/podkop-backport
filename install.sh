@@ -226,9 +226,7 @@ main() {
     sing_box
 
     if [ -f "/etc/init.d/podkop" ]; then
-        msg "Podkop is already installed. Upgrading..."
-        /etc/init.d/podkop stop 2> /dev/null
-        sleep 3
+        msg "Podkop is already installed"
 
         # Check version
         msg "Check podkop version"
