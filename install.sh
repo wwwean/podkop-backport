@@ -228,7 +228,7 @@ main() {
     if [ -f "/etc/init.d/podkop" ]; then
         msg "Podkop is already installed"
 
-        # Check version
+        # Check version 
         msg "Check podkop version"
         if command -v podkop > /dev/null 2>&1; then
             local version
