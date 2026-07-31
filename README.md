@@ -19,7 +19,7 @@ https://podkop.net/
 # Автоматическая установка
 Заходим на роутер через ssh, скачиваем и запускаем установочный скрипт:
 ```
-wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/0.7.20/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
+wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/main/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
 ```
 
 # Ручная установка
@@ -40,7 +40,7 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 # Обоновление
 Для обновления заходим на роутер через ssh, скачиваем и запускаем установочный скрипт:
 ```
-wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/0.7.20/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
+wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/main/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
 ```
 
 # Известные проблемы
