@@ -24,8 +24,8 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 
 # Ручная установка
 ## 1. Установка Sing-box-backport (требуется версия 1.12.4 или новее)
-На старых версиях OpenWrt этого пакета нет в репозиториях - качаем пакет из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) и устанавливаем.\
-Могут возникнуть сложности с пакетом kmod-inet-diag. На GL.iNet GL-MT6000 Flint 2 он подтянется из репозитория GL.iNet. Для чистой OpenWrt 21 есть [патч](https://github.com/openwrt/openwrt/commit/efc8aff62cb244583a14c30f8d099103b75ced1d.patch), добавляющий поддержку этого пакета.
+- В версиях >= 0.7.0 устанавливается расширенная версия sing-box-extended ([ссылка](https://github.com/shtorm-7/sing-box-extended)), которая, например, поддерживает vless с xhttp. Для установки качаем пакет из [релиза](https://github.com/wwwean/podkop-backport/releases/latest) и устанавливаем.
+- Могут возникнуть сложности с пакетом kmod-inet-diag. На GL.iNet GL-MT6000 Flint 2 он подтянется из репозитория GL.iNet. Для чистой OpenWrt 21 есть [патч](https://github.com/openwrt/openwrt/commit/efc8aff62cb244583a14c30f8d099103b75ced1d.patch) ядра, добавляющий поддержку этого пакета.
 
 ## 2. Установка Podkop-backport
 ### Перед установкой нужно проверить наличие следующих пакетов:
@@ -42,5 +42,9 @@ wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backpo
 ```
 wget -O install-podkop.sh https://raw.githubusercontent.com/wwwean/podkop-backport/refs/heads/0.7.20/install.sh && chmod +x install-podkop.sh && ./install-podkop.sh
 ```
+
+# Известные проблемы
+- При переустановке/обновлении могут быть сообщения об ошибках. Игнорим - на работоспособность это никак не влияет.
+- После переустановки/обновления может глючить интерфейс Luci на странице настроек Podkop. Необходимо сбросить кэш браузера через F12 -> Network -> Включаем "Disable cache" (после обновления страницы выключаем).
 
 
