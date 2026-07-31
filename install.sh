@@ -2,15 +2,7 @@
 # shellcheck shell=dash
 set -e
 
-#REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
-# REPO="https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/coreutils-base64_9.7-r1_aarch64_generic.ipk
-# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/jq_1.8.1-r1_aarch64_generic.ipk
-# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/luci-app-podkop-backport_0.7.20.ipk
-# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/luci-i18n-podkop-backport-ru.ipk
-# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/podkop-backport_0.7.20.ipk
-# https://github.com/wwwean/podkop-backport/releases/download/untagged-b375ef6809e5741a6cae/sing-box_backport_1.12.22_arm64.ipk
-# # "
-
+REPO="https://api.github.com/repos/wwwean/podkop-backport/releases/latest"
 DOWNLOAD_DIR="/tmp/podkop"
 COUNT=3
 FIX_REPO=0
@@ -19,8 +11,8 @@ FIX_REPO=0
 PKG_IS_APK=0
 command -v apk >/dev/null 2>&1 && PKG_IS_APK=1
 
-# rm -rf "$DOWNLOAD_DIR"
-# mkdir -p "$DOWNLOAD_DIR"
+rm -rf "$DOWNLOAD_DIR"
+mkdir -p "$DOWNLOAD_DIR"
 
 msg() {
     printf "\033[32;1m%s\033[0m\n" "$1"
@@ -139,10 +131,9 @@ pkg_download() {
         grep_url_pattern='https://[^"[:space:]]*\.ipk'
     fi
 
-    tmpfile="/tmp/urls.$$"
+    tmpfile="$DOWNLOAD_DIR/urls.$$"
     trap 'rm -f "$tmpfile"' EXIT INT TERM
     wget --timeout=60 -qO- "$REPO" | grep -o "$grep_url_pattern" > "$tmpfile"
-    # echo "$REPO" > "$tmpfile"
     while read -r url; do
         filename=$(basename "$url")
         filepath="$DOWNLOAD_DIR/$filename"
@@ -245,7 +236,7 @@ main() {
             local version
             version=$(/usr/bin/podkop show_version 2> /dev/null)
             if [ -n "$version" ]; then
-                version=$(echo "$version" | sed -E 's/^(backport_)?(dev_)?([0-9.]+).*/\3/')
+                version=$(echo "$version" | sed -E 's/^backport(-|_)(dev_)?([0-9.]+).*/\3/')
                 local major
                 local minor
                 local patch
@@ -284,10 +275,10 @@ main() {
             msg "Installing $file..."
             pkg_install "$DOWNLOAD_DIR/$file"
             sleep 3
+            msg "Ok"
+            msg
         fi
     done
-    msg "Ok"
-    msg
 
     ru=""
     for f in "$DOWNLOAD_DIR"/luci-i18n-podkop*; do
@@ -325,8 +316,8 @@ main() {
     fi
     msg
 
-    # find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
-    msg "Congratulations! New Podkop is running now"
+    find "$DOWNLOAD_DIR" -type f -name '*podkop*' -exec rm {} \;
+    msg "Congratulations! Podkop is running now"
 }
 
 prepare_system() {
@@ -370,7 +361,7 @@ prepare_system() {
     fi
 
     msg "Download required packages"
-    # pkg_download
+    pkg_download
 
     msg "Install/Update required packages"
     for pkg in jq coreutils; do
@@ -418,18 +409,19 @@ sing_box() {
         sing_box_install
     fi
 
-    sing_box_version=$(sing-box version | sed -nE 's/.*version ([0-9.]+)(-.*)?/\1/p')
-    latest_version=$(curl -s https://api.github.com/repos/shtorm-7/sing-box-extended/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//' | sed -nE 's/([0-9.]+)(-.*)?/\1/p')
+    sing_box_version=$(sing-box version | sed -nE 's/.*version ([0-9.]+)(-extended-([0-9.]+))?/\1-\3/; T; s/-$//; p')
+    # latest_version=$(curl -s https://api.github.com/repos/shtorm-7/sing-box-extended/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4 | sed 's/^v//' | sed -nE 's/([0-9.]+)(-.*)?/\1/p')
+    latest_version=$(basename $(echo "$DOWNLOAD_DIR"/"sing-box"*) | sed -nE 's/^sing-box_backport-([0-9.]+)-extended-([0-9.]+)_.*/\1-\2/; T; s/-$//; p')
     required_version=$latest_version
 
     if [ "$(printf '%s\n%s\n' "$sing_box_version" "$required_version" | sort -V | head -n 1)" != "$required_version" ]; then
-        msg_er "sing-box version $sing_box_version is older than the required version $required_version."
+        msg_er "sing-box version $sing_box_version is older than the latest version"
         msg "Removing old version..."
         /etc/init.d/podkop stop > /dev/null 2>&1
         sleep 3
         pkg_remove sing-box
 
-        msg "Install/update sing-box-extended"
+        msg "Install/update sing-box"
         sing_box_install
     fi
     msg "Ok"
