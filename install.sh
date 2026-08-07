@@ -243,9 +243,9 @@ main() {
                 patch=$(echo "$version" | cut -d. -f3 2> /dev/null)
 
                 # Compare version: must be >= 0.7.0
-                if [ "$major" -gt 0 ] || 
-                    [ "$major" -eq 0 ] && [ "$minor" -gt 7 ] || 
-                    [ "$major" -eq 0 ] && [ "$minor" -eq 7 ] && [ "$patch" -ge 0 ]; then
+                if [ "$major" -gt 0 ] ||
+                    ([ "$major" -eq 0 ] && [ "$minor" -gt 7 ]) ||
+                    ([ "$major" -eq 0 ] && [ "$minor" -eq 7 ] && [ "$patch" -ge 0 ]); then
                     msg "Podkop version >= 0.7.0"
                     break
                 else
